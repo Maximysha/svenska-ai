@@ -1,0 +1,2728 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SvenskaAI — Шведська мова з ШІ-репетитором</title>
+    <!-- Telegram Mini App SDK (автоматично активується всередині Telegram) -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Nunito (дружній стиль у дусі Duolingo) та Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Nunito', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        duoGreen: '#58CC02',
+                        duoGreenDark: '#46A302',
+                        duoBlue: '#1CB0F6',
+                        duoBlueDark: '#1899D6',
+                        swedenBlue: '#006AA7',
+                        swedenYellow: '#FECC02',
+                        duoRed: '#FF4B4B',
+                        duoRedDark: '#EA2B2B',
+                        duoPurple: '#CE82FF',
+                        duoPurpleDark: '#A568CC',
+                        duoOrange: '#FF9600',
+                        duoOrangeDark: '#E58000',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Тактильні 3D-кнопки в стилі Duolingo */
+        .btn-3d {
+            transition: transform 0.08s ease, border-bottom-width 0.08s ease, background-color 0.15s ease;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            will-change: transform;
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(3px);
+        }
+
+        /* Захист від авто-зуму на iOS та безпечні відступи для Telegram Mini App */
+        input, textarea, button {
+            touch-action: manipulation;
+        }
+        input, textarea {
+            font-size: 16px;
+        }
+        .pb-safe {
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+        }
+        .pb-safe-lg {
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+
+        /* Плавні анімації інтерфейсу */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.92) translateY(8px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-pop {
+            animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: floatSlow 3.2s ease-in-out infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        .animate-shake {
+            animation: shake 0.35s ease-in-out;
+        }
+
+        /* Приховування скролбару для охайності */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-sky-200">
+
+    <!-- ==================== ВЕРХНЯ ПАНЕЛЬ НАВІГАЦІЇ (HUD) ==================== -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b-2 border-slate-200">
+        <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
+            <!-- Логотип -->
+            <button onclick="switchTab('path')" class="flex items-center gap-2.5 group focus:outline-none">
+                <div class="w-10 h-10 rounded-2xl bg-swedenBlue flex items-center justify-center shadow-sm border-b-4 border-sky-900 relative overflow-hidden">
+                    <!-- Мінімалістичний шведський прапор-фон -->
+                    <div class="absolute inset-y-0 left-3 w-2 bg-swedenYellow"></div>
+                    <div class="absolute inset-x-0 top-4 h-2 bg-swedenYellow"></div>
+                    <span class="relative z-10 text-xl drop-shadow">🫎</span>
+                </div>
+                <div class="text-left leading-tight">
+                    <span class="font-black text-xl tracking-tight text-swedenBlue group-hover:text-duoBlue transition">Svenska<span class="text-duoGreen">AI</span></span>
+                    <span class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Рівень 1 • A1</span>
+                </div>
+            </button>
+
+            <!-- Десктопна навігація -->
+            <nav class="hidden md:flex items-center gap-2">
+                <button id="nav-desktop-path" onclick="switchTab('path')" class="nav-btn px-4 py-2 rounded-2xl font-extrabold text-sm flex items-center gap-2 transition">
+                    <span>🗺️</span> Навчання
+                </button>
+                <button id="nav-desktop-grammar" onclick="switchTab('grammar')" class="nav-btn px-4 py-2 rounded-2xl font-extrabold text-sm flex items-center gap-2 transition">
+                    <span>📘</span> Граматика
+                </button>
+                <button id="nav-desktop-ai" onclick="switchTab('ai')" class="nav-btn px-4 py-2 rounded-2xl font-extrabold text-sm flex items-center gap-2 transition">
+                    <span>✨</span> ШІ-Тренер
+                </button>
+            </nav>
+
+            <!-- Статистика гравця (Стрік, XP, Серця, Звук) -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="flex items-center gap-1 bg-orange-50 border-2 border-orange-200 px-2.5 py-1 rounded-xl" title="Днів поспіль">
+                    <span class="text-base">🔥</span>
+                    <span id="hud-streak" class="font-black text-sm text-duoOrange">1</span>
+                </div>
+                <div class="flex items-center gap-1 bg-amber-50 border-2 border-amber-200 px-2.5 py-1 rounded-xl" title="Досвід (XP)">
+                    <span class="text-base">⚡</span>
+                    <span id="hud-xp" class="font-black text-sm text-amber-600">0</span>
+                </div>
+                <button onclick="openHeartsModal()" class="flex items-center gap-1 bg-rose-50 border-2 border-rose-200 px-2.5 py-1 rounded-xl hover:bg-rose-100 transition" title="Життя">
+                    <span class="text-base">❤️</span>
+                    <span id="hud-hearts" class="font-black text-sm text-duoRed">5</span>
+                </button>
+                <button id="sound-toggle-btn" onclick="toggleSound()" class="p-2 rounded-xl border-2 border-slate-200 hover:bg-slate-100 text-slate-600 transition" title="Увімкнути/вимкнути звук">
+                    🔊
+                </button>
+                <button onclick="openSettingsModal()" class="p-2 rounded-xl border-2 border-slate-200 hover:bg-slate-100 text-slate-600 transition" title="Налаштування та Telegram">
+                    ⚙️
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== ОСНОВНИЙ КОНТЕНТ ==================== -->
+    <main class="flex-1 max-w-4xl w-full mx-auto px-4 pt-6 pb-28 md:pb-12">
+
+        <!-- ========== ВКЛАДКА 1: ШЛЯХ НАВЧАННЯ (КАРТА РІВНЯ 1) ========== -->
+        <section id="view-path" class="space-y-6 animate-pop">
+            <!-- Банер Розділу 1 -->
+            <div class="rounded-3xl bg-gradient-to-r from-swedenBlue via-sky-600 to-duoBlue text-white p-6 shadow-md border-b-4 border-sky-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <div class="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider">
+                            <span>🇸🇪</span> Розділ 1 • База та граматика
+                        </div>
+                        <div id="tg-user-greeting" class="hidden inline-flex items-center gap-1.5 bg-sky-950/35 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-extrabold">
+                            <span>✈️</span> <span id="tg-user-name">Telegram</span>
+                        </div>
+                    </div>
+                    <h1 class="text-2xl sm:text-3xl font-black tracking-tight">Будуємо перші речення шведською</h1>
+                    <p class="text-sky-100 font-semibold text-sm sm:text-base mt-1">
+                        Вивчіть ключові правила граматики, тренуйте порядок слів V2 та отримуйте розбір помилок від ШІ.
+                    </p>
+                </div>
+                <button onclick="switchTab('grammar')" class="btn-3d shrink-0 bg-white text-swedenBlue font-extrabold px-4 py-3 rounded-2xl border-b-4 border-sky-200 hover:bg-sky-50 text-sm flex items-center gap-2">
+                    <span>📖</span> Правила рівня
+                </button>
+            </div>
+
+            <!-- Прогрес рівня -->
+            <div class="bg-white rounded-2xl border-2 border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="w-full sm:w-2/3">
+                    <div class="flex justify-between text-sm font-extrabold mb-1.5">
+                        <span class="text-slate-600">Прогрес Рівня 1</span>
+                        <span id="level-progress-text" class="text-duoGreen">0 / 4 уроків</span>
+                    </div>
+                    <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden">
+                        <div id="level-progress-bar" class="h-full bg-duoGreen rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <button onclick="switchTab('ai')" class="btn-3d w-full sm:w-auto bg-purple-600 hover:bg-purple-500 text-white font-extrabold px-4 py-2.5 rounded-2xl border-b-4 border-purple-800 text-sm flex items-center justify-center gap-2">
+                    <span>🤖</span> Вільна практика з ШІ
+                </button>
+            </div>
+
+            <!-- Вертикальна стежка уроків у стилі Duolingo -->
+            <div id="lesson-path-container" class="relative py-4 flex flex-col items-center gap-6">
+                <!-- Генерується динамічно через JS -->
+            </div>
+        </section>
+
+        <!-- ========== ВКЛАДКА 2: ДОВІДНИК ГРАМАТИКИ (РІВЕНЬ 1) ========== -->
+        <section id="view-grammar" class="hidden space-y-6 animate-pop">
+            <div class="bg-white rounded-3xl border-2 border-slate-200 p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                    <h2 class="text-2xl font-black text-slate-800 flex items-center gap-2">
+                        <span>📘</span> Граматика Рівня 1 (A1)
+                    </h2>
+                    <span class="inline-flex items-center gap-1.5 text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full">
+                        🔊 Натискайте на фрази для озвучення
+                    </span>
+                </div>
+                <p class="text-slate-500 font-semibold text-sm">
+                    Простий конспект правил, які потрібні для побудови правильних шведських речень. Перед уроком або під час тренування заглядайте сюди!
+                </p>
+            </div>
+
+            <div id="grammar-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Генерується динамічно через JS -->
+            </div>
+        </section>
+
+        <!-- ========== ВКЛАДКА 3: ШІ-ТРЕНЕР РЕЧЕНЬ ТА РОЗБІР ПОМИЛОК ========== -->
+        <section id="view-ai" class="hidden space-y-6 animate-pop">
+            <!-- Заголовок ШІ-тренера -->
+            <div class="rounded-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 text-white p-6 shadow-md border-b-4 border-indigo-900">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div class="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider mb-2">
+                            <span>✨</span> Безкоштовний ШІ-Репетитор
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-black">Тренажер речень з перевіркою помилок</h2>
+                        <p class="text-indigo-100 font-semibold text-sm mt-1">
+                            Перекладіть завдання або напишіть будь-яке своє речення шведською — ШІ знайде помилки, пояснить граматику українською та покаже правильний варіант.
+                        </p>
+                    </div>
+                    <div class="text-5xl animate-float hidden sm:block">🤖</div>
+                </div>
+            </div>
+
+            <!-- Перемикач режимів ШІ-тренера -->
+            <div class="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border-2 border-slate-200">
+                <button id="ai-mode-task-btn" onclick="setAiMode('task')" class="flex-1 py-2.5 px-4 rounded-xl font-extrabold text-sm transition bg-indigo-600 text-white shadow-sm">
+                    🎯 Переклад завдань (Рівень 1)
+                </button>
+                <button id="ai-mode-free-btn" onclick="setAiMode('free')" class="flex-1 py-2.5 px-4 rounded-xl font-extrabold text-sm transition text-slate-600 hover:bg-slate-100">
+                    ✍️ Власне речення шведською
+                </button>
+                <button id="ai-mode-ask-btn" onclick="setAiMode('ask')" class="flex-1 py-2.5 px-4 rounded-xl font-extrabold text-sm transition text-slate-600 hover:bg-slate-100">
+                    ❓ Запитати правило у ШІ
+                </button>
+            </div>
+
+            <!-- Основна картка вводу для режиму перекладу або вільного речення -->
+            <div id="ai-sentence-lab" class="bg-white rounded-3xl border-2 border-slate-200 p-5 sm:p-6 space-y-5 shadow-sm">
+                <!-- Блок завдання (видимий тільки в режимі 'task') -->
+                <div id="ai-task-box" class="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 space-y-3">
+                    <!-- Фільтр завдань за темами -->
+                    <div id="ai-topic-filters" class="flex flex-wrap gap-1.5 pb-1">
+                        <button onclick="setAiTopicFilter(0)" data-topic="0" class="ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-swedenBlue text-white transition">Усі теми</button>
+                        <button onclick="setAiTopicFilter(1)" data-topic="1" class="ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-white text-slate-600 border border-sky-200 hover:bg-sky-100 transition">1. Займенники і är</button>
+                        <button onclick="setAiTopicFilter(2)" data-topic="2" class="ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-white text-slate-600 border border-sky-200 hover:bg-sky-100 transition">2. Дієслова на -r</button>
+                        <button onclick="setAiTopicFilter(3)" data-topic="3" class="ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-white text-slate-600 border border-sky-200 hover:bg-sky-100 transition">3. V2 та inte</button>
+                        <button onclick="setAiTopicFilter(4)" data-topic="4" class="ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-white text-slate-600 border border-sky-200 hover:bg-sky-100 transition">4. en / ett</button>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span id="ai-task-badge" class="text-xs font-extrabold uppercase tracking-wider bg-sky-200 text-sky-900 px-2.5 py-1 rounded-lg">
+                            Тема: Правило V2
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="nextCuratedAiTask()" class="text-xs font-extrabold text-sky-700 hover:text-sky-900 bg-white border border-sky-200 px-3 py-1.5 rounded-xl transition">
+                                🔀 Інше завдання
+                            </button>
+                            <button id="btn-gen-ai-task" onclick="generateAiTask()" class="text-xs font-extrabold text-purple-700 hover:text-purple-900 bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+                                <span>✨</span> Нове від ШІ
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-500 uppercase">Перекладіть шведською:</p>
+                        <p id="ai-task-prompt" class="text-xl sm:text-2xl font-black text-slate-800 mt-1">
+                            Сьогодні я п'ю каву і читаю книгу.
+                        </p>
+                        <p id="ai-task-hint" class="text-sm font-semibold text-sky-700 mt-1.5">
+                            💡 Підказка слів: idag (сьогодні), dricker (п'ю), kaffe (кава), läser (читаю), en bok (книга)
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Блок підказки для вільного режиму -->
+                <div id="ai-free-box" class="hidden bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
+                    <p class="font-extrabold text-emerald-900 text-sm">✍️ Вільний режим:</p>
+                    <p class="text-emerald-800 text-sm font-semibold mt-0.5">
+                        Напишіть будь-яке речення шведською (наприклад, про себе, свою роботу, погоду чи плани), а ШІ перевірить граматику, артиклі <code class="bg-white px-1.5 py-0.5 rounded">en/ett</code>, порядок слів <strong>V2</strong> та орфографію!
+                    </p>
+                </div>
+
+                <!-- Швидка клавіатура шведських літер å, ä, ö -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <label for="ai-swedish-input" class="text-sm font-extrabold text-slate-600">Ваше речення шведською:</label>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs font-bold text-slate-400 mr-1">Шведські літери:</span>
+                            <button type="button" onclick="insertSwedishChar('ai-swedish-input', 'å')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-sky-100 border border-slate-300 font-black text-slate-700 text-sm">å</button>
+                            <button type="button" onclick="insertSwedishChar('ai-swedish-input', 'ä')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-sky-100 border border-slate-300 font-black text-slate-700 text-sm">ä</button>
+                            <button type="button" onclick="insertSwedishChar('ai-swedish-input', 'ö')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-sky-100 border border-slate-300 font-black text-slate-700 text-sm">ö</button>
+                        </div>
+                    </div>
+                    <textarea id="ai-swedish-input" rows="3" placeholder="Наприклад: Idag dricker jag kaffe och läser en bok."
+                        class="w-full rounded-2xl border-2 border-slate-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 p-4 text-lg font-bold text-slate-800 outline-none transition resize-none"></textarea>
+                </div>
+
+                <!-- Кнопка перевірки -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <button id="ai-check-btn" onclick="checkSentenceWithAI()" class="btn-3d w-full sm:w-auto bg-duoGreen hover:bg-green-500 text-white font-black px-8 py-3.5 rounded-2xl border-b-4 border-duoGreenDark text-base flex items-center justify-center gap-2">
+                        <span>🔍</span> Перевірити помилки з ШІ
+                    </button>
+                    <button onclick="document.getElementById('ai-swedish-input').value = ''; document.getElementById('ai-feedback-container').classList.add('hidden');" class="text-sm font-bold text-slate-400 hover:text-slate-600 px-3 py-2">
+                        Очистити поле
+                    </button>
+                </div>
+
+                <!-- Індикатор завантаження ШІ -->
+                <div id="ai-loading" class="hidden py-6 text-center space-y-2">
+                    <div class="inline-block w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <p class="text-sm font-extrabold text-indigo-600">ШІ-репетитор аналізує граматику та порядок слів...</p>
+                </div>
+
+                <!-- Контейнер результату аналізу від ШІ -->
+                <div id="ai-feedback-container" class="hidden space-y-4 pt-2 animate-pop">
+                    <!-- Заповнюється динамічно -->
+                </div>
+            </div>
+
+            <!-- Блок "Запитати правило у ШІ" (режим 'ask') -->
+            <div id="ai-ask-lab" class="hidden bg-white rounded-3xl border-2 border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
+                <h3 class="text-lg font-black text-slate-800">❓ Запитайте будь-що про шведську граматику</h3>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="quickAskAi('Поясни простими словами правило V2 у шведській мові з 3 прикладами.')" class="text-xs font-extrabold bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-3 py-2 rounded-xl transition">
+                        Що таке правило V2?
+                    </button>
+                    <button onclick="quickAskAi('Як зрозуміти, коли ставити en, а коли ett у шведській мові?')" class="text-xs font-extrabold bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-3 py-2 rounded-xl transition">
+                        Різниця між en та ett
+                    </button>
+                    <button onclick="quickAskAi('Де правильно ставити слово inte у шведському реченні?')" class="text-xs font-extrabold bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-3 py-2 rounded-xl transition">
+                        Куди ставити inte?
+                    </button>
+                    <button onclick="quickAskAi('Як утворюється минулий час у базових шведських дієсловах?')" class="text-xs font-extrabold bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 px-3 py-2 rounded-xl transition">
+                        Як сказати в минулому часі?
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <input id="ai-question-input" type="text" placeholder="Наприклад: Чому кажуть 'jag kommer från', а не 'jag är från'?"
+                        class="flex-1 rounded-2xl border-2 border-slate-300 focus:border-indigo-500 px-4 py-3 font-bold text-slate-800 outline-none"
+                        onkeydown="if(event.key==='Enter') askGrammarQuestion()">
+                    <button id="ai-ask-submit-btn" onclick="askGrammarQuestion()" class="btn-3d bg-indigo-600 hover:bg-indigo-500 text-white font-black px-6 py-3 rounded-2xl border-b-4 border-indigo-800">
+                        Запитати
+                    </button>
+                </div>
+                <div id="ai-ask-loading" class="hidden py-4 text-center">
+                    <div class="inline-block w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <p class="text-xs font-extrabold text-indigo-600 mt-1">Готую зрозуміле пояснення...</p>
+                </div>
+                <div id="ai-ask-answer" class="hidden bg-indigo-50/70 border-2 border-indigo-200 rounded-2xl p-5 text-slate-800 font-semibold text-sm sm:text-base leading-relaxed whitespace-pre-line"></div>
+            </div>
+
+            <!-- Історія останніх перевірок ШІ -->
+            <div id="ai-history-section" class="hidden space-y-3">
+                <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-400 px-1">Нещодавно перевірені речення</h3>
+                <div id="ai-history-list" class="space-y-2.5"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== НИЖНЯ НАВІГАЦІЯ ДЛЯ МОБІЛЬНИХ ==================== -->
+    <nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t-2 border-slate-200 px-2 pt-2 pb-safe flex justify-around items-center">
+        <button id="nav-mobile-path" onclick="switchTab('path')" class="flex flex-col items-center justify-center px-4 py-1.5 rounded-2xl font-extrabold text-xs gap-0.5 transition">
+            <span class="text-xl">🗺️</span>
+            <span>Навчання</span>
+        </button>
+        <button id="nav-mobile-grammar" onclick="switchTab('grammar')" class="flex flex-col items-center justify-center px-4 py-1.5 rounded-2xl font-extrabold text-xs gap-0.5 transition">
+            <span class="text-xl">📘</span>
+            <span>Граматика</span>
+        </button>
+        <button id="nav-mobile-ai" onclick="switchTab('ai')" class="flex flex-col items-center justify-center px-4 py-1.5 rounded-2xl font-extrabold text-xs gap-0.5 transition">
+            <span class="text-xl">✨</span>
+            <span>ШІ-Тренер</span>
+        </button>
+    </nav>
+
+    <!-- ==================== ПОВНОЕКРАННИЙ РЕЖИМ УРОКУ ==================== -->
+    <div id="lesson-overlay" class="hidden fixed inset-0 z-50 bg-white flex flex-col">
+        <!-- Верхній бар уроку -->
+        <div class="max-w-3xl w-full mx-auto px-4 pt-5 pb-3 flex items-center gap-3 sm:gap-4">
+            <button onclick="confirmExitLesson()" class="w-10 h-10 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 font-black text-xl transition" title="Вийти з уроку">
+                ✕
+            </button>
+            <div class="flex-1 space-y-1">
+                <div class="flex items-center justify-between text-xs font-extrabold text-slate-400">
+                    <span id="lesson-header-title" class="truncate">Тема 1</span>
+                    <span id="lesson-step-counter" class="shrink-0 text-swedenBlue">1 / 9</span>
+                </div>
+                <div class="w-full h-3.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div id="lesson-progress-bar" class="h-full bg-duoGreen rounded-full transition-all duration-300" style="width: 10%"></div>
+                </div>
+            </div>
+            <div class="flex items-center gap-1 font-black text-duoRed">
+                <span>❤️</span>
+                <span id="lesson-hearts-count">5</span>
+            </div>
+        </div>
+
+        <!-- Контент поточного кроку уроку -->
+        <div class="flex-1 overflow-y-auto px-4 py-4">
+            <div id="lesson-step-container" class="max-w-2xl mx-auto w-full min-h-full flex flex-col justify-center">
+                <!-- Рендериться JS залежно від типу вправи -->
+            </div>
+        </div>
+
+        <!-- Нижня панель перевірки та фідбеку (як у Duolingo) -->
+        <div id="lesson-footer" class="border-t-2 border-slate-200 bg-white transition-colors duration-200 pb-safe">
+            <div class="max-w-3xl mx-auto px-4 py-4 sm:py-5">
+                <!-- Блок результату (правильно / помилка + ШІ пояснення) -->
+                <div id="lesson-feedback-box" class="hidden mb-4 space-y-3 animate-pop">
+                    <div class="flex items-start gap-3">
+                        <div id="feedback-icon" class="w-10 h-10 rounded-full flex items-center justify-center text-xl shrink-0"></div>
+                        <div class="flex-1 min-w-0">
+                            <h4 id="feedback-title" class="font-black text-lg leading-tight"></h4>
+                            <p id="feedback-detail" class="font-bold text-sm mt-0.5"></p>
+                        </div>
+                    </div>
+
+                    <!-- Кнопка та блок ШІ-пояснення помилки прямо в уроці -->
+                    <div id="lesson-ai-help-wrapper" class="hidden">
+                        <button id="lesson-ai-explain-btn" onclick="explainLessonMistakeWithAI()" class="btn-3d bg-white text-indigo-700 border-2 border-indigo-200 border-b-4 hover:bg-indigo-50 font-extrabold text-xs sm:text-sm px-4 py-2 rounded-xl inline-flex items-center gap-1.5">
+                            <span>✨</span> Пояснити мою помилку з ШІ
+                        </button>
+                        <div id="lesson-ai-explain-output" class="hidden mt-3 bg-white/95 border-2 border-indigo-200 rounded-2xl p-4 text-sm text-slate-800 space-y-2 shadow-sm">
+                            <!-- Динамічне ШІ-пояснення -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопки дій -->
+                <div class="flex items-center justify-between gap-3">
+                    <button id="lesson-skip-btn" onclick="skipOrHintStep()" class="hidden sm:inline-flex px-5 py-3 rounded-2xl border-2 border-slate-200 font-extrabold text-slate-400 hover:bg-slate-100 hover:text-slate-600 text-sm transition">
+                        Підказка
+                    </button>
+                    <button id="lesson-action-btn" onclick="handleLessonPrimaryAction()" class="btn-3d w-full sm:w-auto sm:min-w-[190px] ml-auto bg-duoGreen hover:bg-green-500 disabled:bg-slate-200 disabled:text-slate-400 disabled:border-slate-300 text-white font-black py-3.5 px-8 rounded-2xl border-b-4 border-duoGreenDark uppercase tracking-wide text-sm sm:text-base">
+                        Перевірити
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== МОДАЛЬНЕ ВІКНО (БЕЗ ALERT/CONFIRM) ==================== -->
+    <div id="app-modal" class="hidden fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-slate-200 space-y-4 animate-pop">
+            <div class="text-center space-y-2">
+                <div id="modal-emoji" class="text-5xl">🎉</div>
+                <h3 id="modal-title" class="text-2xl font-black text-slate-800">Заголовок</h3>
+                <p id="modal-body" class="text-slate-600 font-semibold text-sm sm:text-base"></p>
+            </div>
+            <div id="modal-actions" class="flex flex-col sm:flex-row gap-2.5 pt-2">
+                <!-- Кнопки додаються динамічно -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== МОДАЛЬНЕ ВІКНО НАЛАШТУВАНЬ ТА TELEGRAM ==================== -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-[65] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-slate-200 space-y-5 animate-pop max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <span>⚙️</span> Налаштування
+                </h3>
+                <button onclick="closeSettingsModal()" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 font-black text-slate-500 transition">✕</button>
+            </div>
+
+            <!-- Статус Telegram Mini App -->
+            <div id="settings-tg-status" class="rounded-2xl border-2 border-sky-200 bg-sky-50 p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-swedenBlue">Telegram Mini App</span>
+                    <span id="settings-tg-badge" class="text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600">Веб-режим</span>
+                </div>
+                <p id="settings-tg-desc" class="text-xs font-semibold text-slate-600">
+                    Запустіть додаток через вашого Telegram-бота, щоб активувати вібровідгук, кнопку «Назад» та хмарну синхронізацію прогресу.
+                </p>
+                <button id="settings-tg-sync-btn" onclick="sendProgressToBot()" class="hidden btn-3d w-full bg-swedenBlue hover:bg-sky-700 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl border-b-4 border-sky-900">
+                    ✈️ Надіслати мій прогрес у чат бота
+                </button>
+            </div>
+
+            <!-- Безкоштовний Gemini API ключ для зовнішнього хостингу / Telegram -->
+            <div class="space-y-2">
+                <label for="settings-api-key" class="block text-sm font-extrabold text-slate-700">
+                    ✨ Безкоштовний Gemini API ключ <span class="text-xs font-bold text-slate-400">(для Telegram/хостингу)</span>
+                </label>
+                <p class="text-xs font-semibold text-slate-500">
+                    Отримайте безкоштовно на <strong>aistudio.google.com</strong> та збережіть тут, якщо запускаєте додаток у своєму Telegram-боті. Ключ зберігається лише на вашому пристрої.
+                </p>
+                <div class="flex gap-2">
+                    <input id="settings-api-key" type="password" placeholder="AIzaSy..." class="flex-1 rounded-xl border-2 border-slate-300 focus:border-indigo-500 px-3 py-2 text-sm font-bold outline-none">
+                    <button onclick="saveCustomApiKey()" class="btn-3d bg-duoGreen hover:bg-green-500 text-white font-black px-4 py-2 rounded-xl border-b-4 border-duoGreenDark text-xs">
+                        Зберегти
+                    </button>
+                </div>
+            </div>
+
+            <!-- Скидання прогресу -->
+            <div class="pt-2 border-t-2 border-slate-100 flex items-center justify-between gap-3">
+                <button onclick="confirmResetProgress()" class="text-xs font-extrabold text-duoRed hover:underline">
+                    🗑️ Скинути прогрес
+                </button>
+                <button onclick="closeSettingsModal()" class="btn-3d bg-slate-100 hover:bg-slate-200 text-slate-700 font-black px-5 py-2.5 rounded-xl border-b-4 border-slate-300 text-xs">
+                    Готово
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ТОСТ-ПОВІДОМЛЕННЯ ==================== -->
+    <div id="toast" class="hidden fixed top-20 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-white font-extrabold text-sm px-5 py-3 rounded-2xl shadow-xl animate-pop">
+    </div>
+
+    <!-- ==================== ЛОГІКА ДОДАТКУ (JAVASCRIPT) ==================== -->
+    <script>
+        /* =========================================================================
+           0. ІНТЕГРАЦІЯ TELEGRAM MINI APP (WEBAPP SDK, HAPTICS, CLOUD STORAGE)
+           ========================================================================= */
+        const TG = {
+            webApp: null,
+            isTelegram: false,
+            user: null,
+
+            init() {
+                const wa = window.Telegram && window.Telegram.WebApp;
+                // Перевіряємо, чи сторінка реально відкрита всередині Telegram (є initData або платформа не 'unknown')
+                if (wa && (wa.initData || (wa.platform && wa.platform !== "unknown"))) {
+                    this.webApp = wa;
+                    this.isTelegram = true;
+                    this.user = wa.initDataUnsafe?.user || null;
+
+                    try {
+                        wa.ready();
+                        wa.expand();
+                        if (typeof wa.disableVerticalSwipes === "function") {
+                            wa.disableVerticalSwipes();
+                        }
+                        if (typeof wa.setHeaderColor === "function") {
+                            wa.setHeaderColor("#ffffff");
+                        }
+                        if (typeof wa.setBackgroundColor === "function") {
+                            wa.setBackgroundColor("#f8fafc");
+                        }
+                        // Прив'язуємо нативну кнопку «Назад» для безпечного виходу з уроку
+                        if (wa.BackButton) {
+                            wa.BackButton.onClick(() => {
+                                const overlay = document.getElementById("lesson-overlay");
+                                if (overlay && !overlay.classList.contains("hidden")) {
+                                    confirmExitLesson();
+                                } else {
+                                    wa.BackButton.hide();
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        // Ігноруємо непідтримувані методи у старіших клієнтах Telegram
+                    }
+
+                    // Показуємо привітання користувача Telegram у банері
+                    if (this.user && this.user.first_name) {
+                        const greetWrap = document.getElementById("tg-user-greeting");
+                        const nameEl = document.getElementById("tg-user-name");
+                        if (greetWrap && nameEl) {
+                            nameEl.textContent = `Привіт, ${this.user.first_name}!`;
+                            greetWrap.classList.remove("hidden");
+                        }
+                    }
+                }
+            },
+
+            haptic(kind = "tap") {
+                if (!this.isTelegram || !this.webApp?.HapticFeedback) return;
+                try {
+                    const hf = this.webApp.HapticFeedback;
+                    if (kind === "tap") hf.impactOccurred("light");
+                    else if (kind === "correct") hf.notificationOccurred("success");
+                    else if (kind === "wrong") hf.notificationOccurred("error");
+                    else if (kind === "fanfare") hf.notificationOccurred("success");
+                } catch (e) {}
+            },
+
+            setBackButton(visible) {
+                if (!this.isTelegram || !this.webApp?.BackButton) return;
+                try {
+                    if (visible) this.webApp.BackButton.show();
+                    else this.webApp.BackButton.hide();
+                } catch (e) {}
+            },
+
+            saveCloud(key, valueStr) {
+                if (!this.isTelegram || !this.webApp?.CloudStorage) return;
+                try {
+                    // Telegram CloudStorage має ліміт 4096 байт на ключ
+                    if (valueStr.length < 3900) {
+                        this.webApp.CloudStorage.setItem(key, valueStr);
+                    }
+                } catch (e) {}
+            },
+
+            loadCloud(key, callback) {
+                if (!this.isTelegram || !this.webApp?.CloudStorage) {
+                    callback(null);
+                    return;
+                }
+                try {
+                    this.webApp.CloudStorage.getItem(key, (err, val) => {
+                        if (!err && val) callback(val);
+                        else callback(null);
+                    });
+                } catch (e) {
+                    callback(null);
+                }
+            },
+
+            sendDataToBot(payloadObj) {
+                if (!this.isTelegram || !this.webApp?.sendData) return false;
+                try {
+                    this.webApp.sendData(JSON.stringify(payloadObj));
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+        };
+
+        /* =========================================================================
+           1. КОНФІГУРАЦІЯ GEMINI API (ШІ-РЕПЕТИТОР З EXPONENTIAL BACKOFF)
+           ========================================================================= */
+        const apiKey = ""; // Автоматично підставляється середовищем виконання
+        const CUSTOM_KEY_STORAGE = "svenska_ai_custom_gemini_key";
+        const GEMINI_MODEL = "gemini-3-flash-preview";
+
+        /**
+         * Повертає активний Gemini API ключ: власний ключ користувача (для Telegram/хостингу) або ключ середовища.
+         */
+        function getEffectiveApiKey() {
+            try {
+                const custom = localStorage.getItem(CUSTOM_KEY_STORAGE);
+                if (custom && custom.trim().length > 10) return custom.trim();
+            } catch (e) {}
+            return apiKey;
+        }
+
+        /**
+         * Виклик Gemini API з таймаутом та автоматичними повторними спробами (exponential backoff).
+         * @param {Object} payload - Тіло запиту для generateContent
+         * @returns {Promise<Object>} - JSON-відповідь API
+         */
+        async function callGeminiAPI(payload) {
+            const activeKey = getEffectiveApiKey();
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(activeKey)}`;
+            const delays = [1000, 2000, 4000, 8000];
+
+            for (let attempt = 0; attempt <= delays.length; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 25000);
+                try {
+                    const response = await fetch(url, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+
+                    if (response.ok) {
+                        return await response.json();
+                    }
+
+                    // Якщо відсутній або невірний ключ на зовнішньому хостингу (Telegram) — не повторюємо марно
+                    if (response.status === 400 || response.status === 403) {
+                        throw new Error("API_KEY_REQUIRED");
+                    }
+
+                    // Якщо помилка перевищення ліміту (429) або серверна (5xx) — чекаємо і повторюємо
+                    if ((response.status === 429 || response.status >= 500) && attempt < delays.length) {
+                        await new Promise(res => setTimeout(res, delays[attempt]));
+                        continue;
+                    }
+
+                    throw new Error(`HTTP ${response.status}`);
+                } catch (err) {
+                    clearTimeout(timeoutId);
+                    if (err.message === "API_KEY_REQUIRED") throw err;
+                    if (attempt < delays.length) {
+                        await new Promise(res => setTimeout(res, delays[attempt]));
+                        continue;
+                    }
+                    throw err;
+                }
+            }
+        }
+
+        /**
+         * Оцінка шведського речення користувача за допомогою структурованого JSON від Gemini.
+         */
+        async function evaluateSwedishSentenceAI(userSwedish, targetUkrainian = null) {
+            const systemInstruction = `Ти — доброзичливий, професійний викладач шведської мови для українців (рівень A1-A2).
+Твоє завдання — перевірити речення користувача шведською мовою та чітко вказати на ВСІ граматичні, лексичні, орфографічні помилки або помилки порядку слів (особливо правило V2, позицію "inte", артиклі "en/ett", форму дієслова).
+Відповідай ВИКЛЮЧНО українською мовою у поясненнях, а приклади та виправлення пиши шведською.
+Якщо речення користувача повністю граматично правильне (навіть якщо порядок слів чи синонім трохи відрізняється від стандартного, але звучить природно шведською), ставь isCorrect: true і score: 100.
+Якщо є дрібна орфографічна помилка (наприклад, відсутня å/ä/ö) або граматична помилка — ставь isCorrect: false та детально перелічи кожну помилку в масиві mistakes.`;
+
+            const userPrompt = targetUkrainian
+                ? `Користувач намагався перекласти з української на шведську:
+Українське завдання: "${targetUkrainian}"
+Відповідь користувача шведською: "${userSwedish}"
+Проаналізуй речення користувача. Чи правильно воно передає зміст і чи відповідає шведській граматиці?`
+                : `Користувач написав вільне речення шведською мовою:
+"${userSwedish}"
+Перевір граматику, порядок слів (V2), артиклі (en/ett), дієслова та орфографію. Переклади українською, що саме він написав, і виправ усі помилки.`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            isCorrect: { type: "BOOLEAN" },
+                            score: { type: "INTEGER" },
+                            correctedSwedish: { type: "STRING" },
+                            ukrainianTranslation: { type: "STRING" },
+                            mistakes: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        wrongPart: { type: "STRING" },
+                                        correctPart: { type: "STRING" },
+                                        ruleName: { type: "STRING" },
+                                        explanationUk: { type: "STRING" }
+                                    },
+                                    required: ["wrongPart", "correctPart", "ruleName", "explanationUk"]
+                                }
+                            },
+                            overallFeedbackUk: { type: "STRING" },
+                            grammarTipUk: { type: "STRING" }
+                        },
+                        required: [
+                            "isCorrect",
+                            "score",
+                            "correctedSwedish",
+                            "ukrainianTranslation",
+                            "mistakes",
+                            "overallFeedbackUk",
+                            "grammarTipUk"
+                        ]
+                    }
+                }
+            };
+
+            const data = await callGeminiAPI(payload);
+            const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawText) throw new Error("Порожня відповідь від ШІ");
+            return JSON.parse(rawText);
+        }
+
+        /* =========================================================================
+           2. ЗВУКОВІ ЕФЕКТИ (WEB AUDIO API) ТА ОЗВУЧЕННЯ ШВЕДСЬКОЇ (SPEECH API)
+           ========================================================================= */
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function initAudioCtx() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) audioCtx = new AudioContextClass();
+            }
+            if (audioCtx && audioCtx.state === "suspended") {
+                audioCtx.resume();
+            }
+        }
+
+        function playTone(freq, duration, type = "sine", startTimeOffset = 0, volume = 0.12) {
+            if (!soundEnabled) return;
+            try {
+                initAudioCtx();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTimeOffset);
+                gain.gain.setValueAtTime(volume, audioCtx.currentTime + startTimeOffset);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTimeOffset + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + startTimeOffset);
+                osc.stop(audioCtx.currentTime + startTimeOffset + duration);
+            } catch (e) {
+                // Безпечно ігноруємо, якщо браузер блокує звук
+            }
+        }
+
+        const SFX = {
+            tap: () => {
+                TG.haptic("tap");
+                playTone(520, 0.06, "triangle", 0, 0.07);
+            },
+            correct: () => {
+                TG.haptic("correct");
+                playTone(523.25, 0.14, "sine", 0, 0.12);
+                playTone(659.25, 0.14, "sine", 0.09, 0.12);
+                playTone(783.99, 0.24, "sine", 0.18, 0.13);
+            },
+            wrong: () => {
+                TG.haptic("wrong");
+                playTone(230, 0.18, "sawtooth", 0, 0.08);
+                playTone(185, 0.28, "sawtooth", 0.14, 0.08);
+            },
+            fanfare: () => {
+                TG.haptic("fanfare");
+                [523.25, 659.25, 783.99, 1046.5].forEach((f, idx) => {
+                    playTone(f, 0.25, "triangle", idx * 0.11, 0.13);
+                });
+            }
+        };
+
+        // Кешуємо найкращий шведський голос, щоб не шукати його щоразу при кліку
+        let cachedSvVoice = null;
+        function refreshSwedishVoice() {
+            if (!("speechSynthesis" in window)) return;
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+                cachedSvVoice = voices.find(v => v.lang && v.lang.toLowerCase() === "sv-se")
+                    || voices.find(v => v.lang && v.lang.toLowerCase().startsWith("sv"))
+                    || null;
+            }
+        }
+
+        /**
+         * Озвучення шведського тексту за допомогою браузерного синтезу мовлення (sv-SE).
+         */
+        function speakSwedish(text, slow = false) {
+            if (!soundEnabled || !("speechSynthesis" in window)) return;
+            try {
+                window.speechSynthesis.cancel();
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.lang = "sv-SE";
+                utter.rate = slow ? 0.65 : 0.95;
+                if (!cachedSvVoice) refreshSwedishVoice();
+                if (cachedSvVoice) utter.voice = cachedSvVoice;
+                window.speechSynthesis.speak(utter);
+            } catch (e) {
+                // Фолбек якщо синтез недоступний
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById("sound-toggle-btn").textContent = soundEnabled ? "🔊" : "🔇";
+            showToast(soundEnabled ? "Звук увімкнено" : "Звук вимкнено");
+        }
+
+        /* =========================================================================
+           3. НАВЧАЛЬНИЙ КОНТЕНТ РІВНЯ 1: ГРАМАТИКА ТА 4 ПРОГРЕСИВНІ УРОКИ
+           ========================================================================= */
+        const GRAMMAR_GUIDES = [
+            {
+                id: "pronouns",
+                icon: "👤",
+                color: "bg-sky-50 border-sky-200",
+                badgeColor: "bg-sky-200 text-sky-900",
+                badge: "Урок 1",
+                title: "Особові займенники та дієслово «är»",
+                summary: "У шведській мові дієслово-зв'язка «є» (är) обов'язкове в реченні та НЕ змінюється за особами!",
+                rows: [
+                    { sv: "Jag är glad.", uk: "Я (є) щасливий/а." },
+                    { sv: "Du heter Anna.", uk: "Тебе звати Анна." },
+                    { sv: "Han / Hon bor i Sverige.", uk: "Він / Вона живе у Швеції." },
+                    { sv: "Vi talar svenska.", uk: "Ми розмовляємо шведською." }
+                ],
+                tip: "Ніколи не пропускайте дієслово! Замість «Я студент» швед каже «Jag är student»."
+            },
+            {
+                id: "present",
+                icon: "⚡",
+                color: "bg-emerald-50 border-emerald-200",
+                badgeColor: "bg-emerald-200 text-emerald-900",
+                badge: "Урок 2",
+                title: "Теперішній час: магія літери -r",
+                summary: "Чудова новина: у шведській дієслова в теперішньому часі однакові для всіх осіб (я, ти, ми, вони) і майже завжди закінчуються на -r!",
+                rows: [
+                    { sv: "Jag talar / Du talar / De talar", uk: "Я говорю / Ти говориш / Вони говорять" },
+                    { sv: "Jag bor i Stockholm.", uk: "Я живу в Стокгольмі." },
+                    { sv: "Hon dricker kaffe.", uk: "Вона п'є каву." },
+                    { sv: "Vi läser en bok.", uk: "Ми читаємо книгу." }
+                ],
+                tip: "Запам'ятайте 5 топ-дієслів: är (є), har (маю), bor (живу), talar (говорю), dricker (п'ю)."
+            },
+            {
+                id: "v2",
+                icon: "👑",
+                color: "bg-amber-50 border-amber-200",
+                badgeColor: "bg-amber-200 text-amber-900",
+                badge: "Урок 3 • Головне правило!",
+                title: "Золоте правило V2 та заперечення «inte»",
+                summary: "У стверджувальному реченні ДІЄСЛОВО (Verb) завжди стоїть на 2-му місці! Якщо речення починається з часу (Idag — сьогодні), підмет і дієслово міняються місцями.",
+                rows: [
+                    { sv: "Jag läser idag.", uk: "Я читаю сьогодні. (Дієслово на 2-му місці)" },
+                    { sv: "Idag läser jag.", uk: "Сьогодні читаю я. (НЕ «Idag jag läser»!)" },
+                    { sv: "Jag talar inte ryska.", uk: "Я не розмовляю російською. (inte ПІСЛЯ дієслова)" },
+                    { sv: "Bor du i Sverige?", uk: "Ти живеш у Швеції? (Питання починається з дієслова)" }
+                ],
+                tip: "Позиція слова «inte» (не) у простому реченні — одразу після дієслова: Jag förstår inte (Я не розумію)."
+            },
+            {
+                id: "articles",
+                icon: "📦",
+                color: "bg-purple-50 border-purple-200",
+                badgeColor: "bg-purple-200 text-purple-900",
+                badge: "Урок 4",
+                title: "Артиклі «en» та «ett» (роди іменників)",
+                summary: "У шведській немає чоловічого/жіночого роду. Є два граматичні роди: en-слова (~75% усіх іменників, особливо люди й тварини) та ett-слова (~25%).",
+                rows: [
+                    { sv: "en bok / en hund / en vän", uk: "книга / собака / друг" },
+                    { sv: "ett hus / ett äpple / ett barn", uk: "будинок / яблуко / дитина" },
+                    { sv: "Jag har en bok och ett äpple.", uk: "Я маю книгу та яблуко." },
+                    { sv: "Boken (ця книга) / Huset (цей будинок)", uk: "Означений артикль приклеюється в кінець слова!" }
+                ],
+                tip: "Завжди вчіть нові шведські слова разом із їхнім артиклем: не просто «hus», а «ett hus»."
+            }
+        ];
+
+        const LESSONS = [
+            {
+                id: 1,
+                title: "Основи та займенники",
+                subtitle: "Jag, du, han, hon, vi, de • Дієслово är",
+                icon: "👋",
+                xpReward: 40,
+                color: "bg-duoGreen border-duoGreenDark",
+                steps: [
+                    {
+                        type: "theory",
+                        badge: "Міні-граматика • Тема 1",
+                        title: "Як представитися та будувати базові речення?",
+                        explanation: "У шведській мові дієслово в теперішньому часі не змінюється за особами! «är» означає «є» для всіх (jag, du, han, hon, vi, ni, de) і є обов'язковим у реченні.",
+                        examples: [
+                            { sv: "Hej! Jag heter Alex.", uk: "Привіт! Мене звати Алекс." },
+                            { sv: "Jag är från Ukraina.", uk: "Я з України." },
+                            { sv: "Vi är hemma idag.", uk: "Ми вдома сьогодні." },
+                            { sv: "De är från Sverige.", uk: "Вони зі Швеції." }
+                        ]
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Оберіть правильний переклад: «Я з України»",
+                        hint: "Не забудьте про обов'язкове дієслово-зв'язку är (є)!",
+                        options: [
+                            "Jag från Ukraina.",
+                            "Jag är från Ukraina.",
+                            "Du är från Ukraina.",
+                            "Jag heter från Ukraina."
+                        ],
+                        correct: "Jag är från Ukraina.",
+                        audio: "Jag är från Ukraina.",
+                        grammarNote: "У шведській дієслово «är» (є) не можна пропускати, на відміну від української."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Привіт, мене звати Анна.",
+                        hint: "Hej = Привіт, jag = я, heter = звати",
+                        words: ["Hej,", "jag", "heter", "Anna.", "du", "är"],
+                        answer: ["Hej,", "jag", "heter", "Anna."],
+                        audio: "Hej, jag heter Anna.",
+                        grammarNote: "Буквально шведи кажуть «Я звуся Анна» — «Jag heter Anna»."
+                    },
+                    {
+                        type: "fix_mistake",
+                        wrongSentence: "Han glad och snäll.",
+                        prompt: "Чого не вистачає у цьому реченні? Оберіть виправлений варіант:",
+                        hint: "У шведському реченні завжди має бути дієслово (är).",
+                        options: [
+                            "Han är glad och snäll.",
+                            "Han heter glad och snäll.",
+                            "Hon glad är och snäll.",
+                            "Han från glad och snäll."
+                        ],
+                        correct: "Han är glad och snäll.",
+                        audio: "Han är glad och snäll.",
+                        grammarNote: "Між підметом «Han» та прикметниками «glad och snäll» обов'язково ставимо «är»."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Ми вдома сьогодні.",
+                        hint: "vi = ми, är = є, hemma = вдома, idag = сьогодні",
+                        words: ["Vi", "är", "hemma", "idag.", "de", "heter", "från"],
+                        answer: ["Vi", "är", "hemma", "idag."],
+                        audio: "Vi är hemma idag.",
+                        grammarNote: "Займенник «vi» (ми) використовує те саме дієслово «är»."
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Як сказати шведською: «Вони зі Швеції»?",
+                        hint: "de = вони (вимовляється як «дом»), Sverige = Швеція",
+                        options: [
+                            "Vi är från Sverige.",
+                            "De är från Sverige.",
+                            "Han är från Sverige.",
+                            "De från Sverige."
+                        ],
+                        correct: "De är från Sverige.",
+                        audio: "De är från Sverige.",
+                        grammarNote: "Слово «de» пишеться через e, але в розмовній мові зазвичай вимовляється як «дом»."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Ти мій хороший друг.",
+                        hint: "du = ти, min = мій, bra = хороший, vän = друг",
+                        words: ["Du", "är", "min", "bra", "vän.", "jag", "hon"],
+                        answer: ["Du", "är", "min", "bra", "vän."],
+                        audio: "Du är min bra vän.",
+                        grammarNote: "Прикметник «bra» (хороший) зручний тим, що не змінює форму!"
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Я з України і мене звати Олена (можете написати своє ім'я!).",
+                        hint: "Використовуйте: Jag är från Ukraina och jag heter ...",
+                        sampleAnswer: "Jag är från Ukraina och jag heter Olena.",
+                        grammarNote: "ШІ перевірить вашу граматику та прийме будь-яке ваше ім'я!"
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Він мій друг і він зі Швеції.",
+                        hint: "Слова: han (він), är (є), min vän (мій друг), och (і), från Sverige (зі Швеції)",
+                        sampleAnswer: "Han är min vän och han är från Sverige.",
+                        grammarNote: "Фінальне речення Теми 1 — закріплюємо займенник «han» та зв'язку «är»."
+                    }
+                ]
+            },
+            {
+                id: 2,
+                title: "Дієслова на -r",
+                subtitle: "Talar, bor, dricker, läser, jobbar, köper",
+                icon: "☕",
+                xpReward: 45,
+                color: "bg-duoBlue border-duoBlueDark",
+                steps: [
+                    {
+                        type: "theory",
+                        badge: "Міні-граматика • Тема 2",
+                        title: "Теперішній час без складнощів",
+                        explanation: "Одне закінчення -r працює для всіх осіб! Додаткове «är» перед іншим дієсловом НЕ ставиться. Порівняйте: «Jag talar» (Я говорю), «Vi talar» (Ми говоримо).",
+                        examples: [
+                            { sv: "Jag bor i Sverige.", uk: "Я живу у Швеції." },
+                            { sv: "Vi talar svenska och ukrainska.", uk: "Ми говоримо шведською і українською." },
+                            { sv: "Hon dricker kaffe på morgonen.", uk: "Вона п'є каву вранці." },
+                            { sv: "De jobbar i Stockholm.", uk: "Вони працюють у Стокгольмі." }
+                        ]
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Як правильно сказати: «Ми живемо у Стокгольмі»?",
+                        hint: "vi = ми, bor = живемо, i = у/в",
+                        options: [
+                            "Vi bo i Stockholm.",
+                            "Vi bor i Stockholm.",
+                            "Jag bor i Stockholm.",
+                            "Vi är bor i Stockholm."
+                        ],
+                        correct: "Vi bor i Stockholm.",
+                        audio: "Vi bor i Stockholm.",
+                        grammarNote: "Інфінітив «att bo» (жити) у теперішньому часі отримує -r → «bor». Допоміжне «är» перед ним НЕ потрібне!"
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Я п'ю каву і вчу шведську.",
+                        hint: "dricker = п'ю, studerar = вчу",
+                        words: ["Jag", "dricker", "kaffe", "och", "studerar", "svenska.", "bor", "te"],
+                        answer: ["Jag", "dricker", "kaffe", "och", "studerar", "svenska."],
+                        audio: "Jag dricker kaffe och studerar svenska.",
+                        grammarNote: "Назви мов у шведській (svenska, ukrainska) пишуться з малої літери!"
+                    },
+                    {
+                        type: "fix_mistake",
+                        wrongSentence: "Hon är talar svenska varje dag.",
+                        prompt: "Знайдіть і виправте типову помилку початківців:",
+                        hint: "У шведській не ставлять «är» перед дієсловом дії (як англійське is speaking).",
+                        options: [
+                            "Hon talar svenska varje dag.",
+                            "Hon är tala svenska varje dag.",
+                            "Hon tala svenska varje dag.",
+                            "Hon bor talar svenska varje dag."
+                        ],
+                        correct: "Hon talar svenska varje dag.",
+                        audio: "Hon talar svenska varje dag.",
+                        grammarNote: "У шведській мові немає форми «is speaking» — достатньо просто «Hon talar»."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Він працює у Швеції і читає книгу.",
+                        hint: "jobbar = працює, i = у, läser = читає, en bok = книгу",
+                        words: ["Han", "jobbar", "i", "Sverige", "och", "läser", "en", "bok.", "är"],
+                        answer: ["Han", "jobbar", "i", "Sverige", "och", "läser", "en", "bok."],
+                        audio: "Han jobbar i Sverige och läser en bok.",
+                        grammarNote: "«jobbar» (працює) — дуже популярне розмовне дієслово, синонім «arbetar»."
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Оберіть правильне дієслово: «Jag ___ mjölk och bröd.» (Я купую молоко і хліб)",
+                        hint: "att köpa = купувати → у теперішньому часі закінчення -er",
+                        options: ["köpa", "köper", "är köper", "köpar"],
+                        correct: "köper",
+                        audio: "Jag köper mjölk och bröd.",
+                        grammarNote: "Дієслова 2-ї групи отримують закінчення -er: «köpa» → «köper», «läsa» → «läser»."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Ми говоримо українською і трохи шведською.",
+                        hint: "talar = говоримо, lite = трохи",
+                        words: ["Vi", "talar", "ukrainska", "och", "lite", "svenska.", "tala", "bor"],
+                        answer: ["Vi", "talar", "ukrainska", "och", "lite", "svenska."],
+                        audio: "Vi talar ukrainska och lite svenska.",
+                        grammarNote: "Фраза «Jag talar lite svenska» (Я трохи говорю шведською) дуже виручить у Швеції!"
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Я живу у Швеції і п'ю каву вранці.",
+                        hint: "Слова: jag, bor, i Sverige, och, dricker, kaffe, på morgonen (вранці)",
+                        sampleAnswer: "Jag bor i Sverige och dricker kaffe på morgonen.",
+                        grammarNote: "Напишіть речення самі — ШІ перевірить дієслова та прийменники."
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Вона вчить шведську і купує книгу.",
+                        hint: "Слова: hon (вона), studerar / lär sig (вчить), svenska, och, köper (купує), en bok",
+                        sampleAnswer: "Hon studerar svenska och köper en bok.",
+                        grammarNote: "Чудовий фінал Теми 2! ШІ розбере кожну деталь вашого речення."
+                    }
+                ]
+            },
+            {
+                id: 3,
+                title: "Правило V2 та «inte»",
+                subtitle: "Порядок слів, інверсія, заперечення і питання",
+                icon: "👑",
+                xpReward: 50,
+                color: "bg-duoOrange border-duoOrangeDark",
+                steps: [
+                    {
+                        type: "theory",
+                        badge: "Міні-граматика • Тема 3",
+                        title: "Найважливіше правило шведської: V2!",
+                        explanation: "Дієслово (V) ЗАВЖДИ стоїть на 2-му місці в розповідному реченні. Якщо на 1-му місці стоїть час або місце (Idag, Nu, Här), підмет іде на 3-тє місце! Слово «inte» (не) ставиться після дієслова (а при інверсії — після підмета).",
+                        examples: [
+                            { sv: "Idag dricker jag te.", uk: "Сьогодні я п'ю чай. (1: Idag, 2: dricker, 3: jag)" },
+                            { sv: "Jag förstår inte.", uk: "Я не розумію. (НЕ «Jag inte förstår»!)" },
+                            { sv: "Imorgon jobbar jag inte.", uk: "Завтра я не працюю. (1: Imorgon, 2: jobbar, 3: jag, 4: inte)" },
+                            { sv: "Talar du svenska?", uk: "Ти розмовляєш шведською? (У питанні дієслово на 1-му місці)" }
+                        ]
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Яке речення побудоване ПРАВИЛЬНО за правилом V2?",
+                        hint: "Порахуйте, на якому місці стоїть дієслово «bor»!",
+                        options: [
+                            "Nu jag bor i Sverige.",
+                            "Nu bor jag i Sverige.",
+                            "Bor nu jag i Sverige.",
+                            "Jag nu bor i Sverige."
+                        ],
+                        correct: "Nu bor jag i Sverige.",
+                        audio: "Nu bor jag i Sverige.",
+                        grammarNote: "«Nu» (зараз) займає 1-шу позицію, тому дієслово «bor» обов'язково стає на 2-гу, а «jag» пересувається на 3-тю!"
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Я не п'ю каву.",
+                        hint: "Увага на місце слова «inte» — після дієслова!",
+                        words: ["Jag", "dricker", "inte", "kaffe.", "te", "är"],
+                        answer: ["Jag", "dricker", "inte", "kaffe."],
+                        audio: "Jag dricker inte kaffe.",
+                        grammarNote: "Правильний порядок: Підмет (Jag) → Дієслово (dricker) → Заперечення (inte)."
+                    },
+                    {
+                        type: "fix_mistake",
+                        wrongSentence: "Jag inte förstår svenska.",
+                        prompt: "Виправте порядок слів із запереченням «inte»:",
+                        hint: "У простому реченні «inte» іде ПІСЛЯ дієслова, а не перед ним!",
+                        options: [
+                            "Jag förstår inte svenska.",
+                            "Inte jag förstår svenska.",
+                            "Förstår jag inte svenska.",
+                            "Jag svenska inte förstår."
+                        ],
+                        correct: "Jag förstår inte svenska.",
+                        audio: "Jag förstår inte svenska.",
+                        grammarNote: "На відміну від українського «Я не розумію», шведи буквально кажуть «Я розумію не»."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Сьогодні ми читаємо шведську.",
+                        hint: "Почніть зі слова «Idag» і застосуйте правило V2!",
+                        words: ["Idag", "läser", "vi", "svenska.", "jag", "inte"],
+                        answer: ["Idag", "läser", "vi", "svenska."],
+                        audio: "Idag läser vi svenska.",
+                        grammarNote: "1. Idag (Сьогодні) → 2. läser (читаємо) → 3. vi (ми)."
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Як правильно запитати: «Ти живеш у Стокгольмі?»",
+                        hint: "У питанні без питального слова дієслово виходить на 1-ше місце!",
+                        options: [
+                            "Du bor i Stockholm?",
+                            "Bor du i Stockholm?",
+                            "I Stockholm bor du?",
+                            "Är du bor i Stockholm?"
+                        ],
+                        correct: "Bor du i Stockholm?",
+                        audio: "Bor du i Stockholm?",
+                        grammarNote: "Питання утворюється просто: ставимо дієслово на 1-ше місце → «Bor du...?», «Talar du...?»."
+                    },
+                    {
+                        type: "fix_mistake",
+                        wrongSentence: "På kvällen hon dricker te.",
+                        prompt: "Застосуйте правило V2! «På kvällen» (Увечері) — це 1-ше місце:",
+                        hint: "Одразу після «På kvällen» має стояти дієслово «dricker»!",
+                        options: [
+                            "På kvällen dricker hon te.",
+                            "På kvällen te dricker hon.",
+                            "Hon på kvällen dricker te.",
+                            "Dricker på kvällen hon te."
+                        ],
+                        correct: "På kvällen dricker hon te.",
+                        audio: "På kvällen dricker hon te.",
+                        grammarNote: "Ціла фраза часу «På kvällen» вважається ОДНИМ блоком (позиція 1), тому дієслово стає на позицію 2."
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Сьогодні я не працюю, я читаю книгу.",
+                        hint: "Слова: idag (сьогодні), jobbar (працюю), inte (не), läser (читаю), en bok (книга)",
+                        sampleAnswer: "Idag jobbar jag inte, jag läser en bok.",
+                        grammarNote: "Перевіряємо правило V2 + позицію «inte» разом із ШІ!"
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Ти розмовляєш шведською чи англійською?",
+                        hint: "Питання починається з дієслова! Слова: talar, du, svenska, eller (чи), engelska",
+                        sampleAnswer: "Talar du svenska eller engelska?",
+                        grammarNote: "Тренуємо побудову питальних речень із перевіркою ШІ!"
+                    }
+                ]
+            },
+            {
+                id: 4,
+                title: "Артиклі en / ett і фінал",
+                subtitle: "Роди іменників та повноцінні речення",
+                icon: "🏆",
+                xpReward: 60,
+                color: "bg-duoPurple border-duoPurpleDark",
+                steps: [
+                    {
+                        type: "theory",
+                        badge: "Міні-граматика • Тема 4",
+                        title: "Артиклі «en» та «ett»",
+                        explanation: "Перед обчислюваним іменником в однині ставимо «en» (~75% слів: en bok, en hund, en bil, en dag) або «ett» (~25% слів: ett hus, ett äpple, ett barn, ett glas).",
+                        examples: [
+                            { sv: "Jag har en hund och en bil.", uk: "Я маю собаку і машину. (en-слова)" },
+                            { sv: "Vi har ett hus och ett barn.", uk: "Ми маємо будинок і дитину. (ett-слова)" },
+                            { sv: "Hon äter ett äpple.", uk: "Вона їсть яблуко. (ett-слово)" },
+                            { sv: "Det är en fin dag idag.", uk: "Сьогодні чудовий день." }
+                        ]
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Оберіть правильний артикль: «Jag äter ___ äpple och läser ___ bok.»",
+                        hint: "äpple = ett-слово, bok = en-слово",
+                        options: [
+                            "en ... ett",
+                            "ett ... en",
+                            "en ... en",
+                            "ett ... ett"
+                        ],
+                        correct: "ett ... en",
+                        audio: "Jag äter ett äpple och läser en bok.",
+                        grammarNote: "Запам'ятайте: «ett äpple» (яблуко), але «en bok» (книга)."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Ми маємо будинок і собаку.",
+                        hint: "har = маємо, ett hus = будинок, en hund = собака",
+                        words: ["Vi", "har", "ett", "hus", "och", "en", "hund.", "är"],
+                        answer: ["Vi", "har", "ett", "hus", "och", "en", "hund."],
+                        audio: "Vi har ett hus och en hund.",
+                        grammarNote: "Чудова робота з обома артиклями в одному реченні!"
+                    },
+                    {
+                        type: "fix_mistake",
+                        wrongSentence: "Han har en hus och ett bil.",
+                        prompt: "Артиклі переплуталися! Оберіть правильне речення:",
+                        hint: "hus — це ett-слово, а bil (машина) — це en-слово!",
+                        options: [
+                            "Han har ett hus och en bil.",
+                            "Han har en hus och en bil.",
+                            "Han har ett hus och ett bil.",
+                            "Han är ett hus och en bil."
+                        ],
+                        correct: "Han har ett hus och en bil.",
+                        audio: "Han har ett hus och en bil.",
+                        grammarNote: "Завжди запам'ятовуйте слово в парі з артиклем: «ett hus», «en bil»."
+                    },
+                    {
+                        type: "choice",
+                        prompt: "Як правильно сказати: «Я купую склянку води»?",
+                        hint: "glas (склянка) — це ett-слово, vatten = вода",
+                        options: [
+                            "Jag köper en glas vatten.",
+                            "Jag köper ett glas vatten.",
+                            "Jag köper ett vatten glas.",
+                            "Jag köpa ett glas vatten."
+                        ],
+                        correct: "Jag köper ett glas vatten.",
+                        audio: "Jag köper ett glas vatten.",
+                        grammarNote: "«Ett glas vatten» (склянка води) і «en kopp kaffe» (чашка кави) — корисні фрази для кафе!"
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Сьогодні чудовий день.",
+                        hint: "Det är = Це є, en fin dag = чудовий день, idag = сьогодні",
+                        words: ["Det", "är", "en", "fin", "dag", "idag.", "ett", "har"],
+                        answer: ["Det", "är", "en", "fin", "dag", "idag."],
+                        audio: "Det är en fin dag idag.",
+                        grammarNote: "Для опису погоди чи дня шведи починають речення з «Det är...»."
+                    },
+                    {
+                        type: "wordbank",
+                        prompt: "Вона їсть яблуко і банан.",
+                        hint: "äter = їсть, ett äpple = яблуко, en banan = банан",
+                        words: ["Hon", "äter", "ett", "äpple", "och", "en", "banan.", "har"],
+                        answer: ["Hon", "äter", "ett", "äpple", "och", "en", "banan."],
+                        audio: "Hon äter ett äpple och en banan.",
+                        grammarNote: "Фрукти бувають різних родів: «ett äpple», але «en banan» і «en apelsin»."
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Я маю хорошу книгу, але сьогодні я не читаю.",
+                        hint: "Слова: har (маю), en bra bok (хороша книга), men (але), idag (сьогодні), läser (читаю), inte (не)",
+                        sampleAnswer: "Jag har en bra bok, men idag läser jag inte.",
+                        grammarNote: "Комбінуємо артикль + сполучник men + правило V2 + inte!"
+                    },
+                    {
+                        type: "ai_write",
+                        prompt: "Увечері ми вдома, ми п'ємо чай і їмо яблуко.",
+                        hint: "Слова: på kvällen (увечері — правило V2!), är vi hemma, vi dricker te, och äter ett äpple",
+                        sampleAnswer: "På kvällen är vi hemma, vi dricker te och äter ett äpple.",
+                        grammarNote: "Фінальний екзамен Рівня 1! Усі 4 теми в одному реченні!"
+                    }
+                ]
+            }
+        ];
+
+        // Розширений банк завдань для ШІ-тренера речень (16 різноманітних завдань по 4 на кожну тему)
+        const CURATED_AI_TASKS = [
+            // Тема 1: Займенники та är
+            {
+                lessonId: 1,
+                topic: "Тема 1 • Займенники і är",
+                uk: "Привіт! Я з України, але зараз я вдома у Швеції.",
+                hint: "hej, jag är från Ukraina, men (але), nu är jag hemma i Sverige"
+            },
+            {
+                lessonId: 1,
+                topic: "Тема 1 • Займенники і är",
+                uk: "Мою подругу звати Софія, вона дуже добра.",
+                hint: "min vän (моя подруга), heter (звати), hon är mycket snäll"
+            },
+            {
+                lessonId: 1,
+                topic: "Тема 1 • Займенники і är",
+                uk: "Він студент, а вона вчителька.",
+                hint: "han är student, och hon är lärare (перед професією артикль не потрібен!)"
+            },
+            {
+                lessonId: 1,
+                topic: "Тема 1 • Займенники і är",
+                uk: "Ми щасливі сьогодні, бо ми разом.",
+                hint: "vi är glada idag (щасливі), eftersom vi är tillsammans (разом)"
+            },
+            // Тема 2: Дієслова на -r
+            {
+                lessonId: 2,
+                topic: "Тема 2 • Дієслова на -r",
+                uk: "Я живу в Стокгольмі і працюю щодня.",
+                hint: "jag bor i Stockholm, och jobbar varje dag"
+            },
+            {
+                lessonId: 2,
+                topic: "Тема 2 • Дієслова на -r",
+                uk: "Мій брат п'є каву, а я п'ю зелений чай.",
+                hint: "min bror dricker kaffe, och jag dricker grönt te"
+            },
+            {
+                lessonId: 2,
+                topic: "Тема 2 • Дієслова на -r",
+                uk: "Вони розмовляють шведською і купують хліб у магазині.",
+                hint: "de talar svenska, och köper bröd i affären"
+            },
+            {
+                lessonId: 2,
+                topic: "Тема 2 • Дієслова на -r",
+                uk: "Вона читає новини і слухає музику вранці.",
+                hint: "hon läser nyheter, och lyssnar på musik på morgonen"
+            },
+            // Тема 3: Правило V2 та inte
+            {
+                lessonId: 3,
+                topic: "Тема 3 • Правило V2",
+                uk: "Сьогодні я п'ю каву і читаю книгу.",
+                hint: "idag (сьогодні — дієслово на 2-ге місце!), dricker, kaffe, läser, en bok"
+            },
+            {
+                lessonId: 3,
+                topic: "Тема 3 • Заперечення inte",
+                uk: "Я ще не розмовляю шведською добре, але я вчуся щодня.",
+                hint: "talar, inte, bra ännu, men, studerar, varje dag"
+            },
+            {
+                lessonId: 3,
+                topic: "Тема 3 • Питання",
+                uk: "Ти живеш у Стокгольмі чи в Україні?",
+                hint: "bor (дієслово на 1-ше місце!), du, i, eller (чи)"
+            },
+            {
+                lessonId: 3,
+                topic: "Тема 3 • V2 + inte",
+                uk: "Завтра ми не працюємо, ми їдемо додому.",
+                hint: "imorgon (завтра), jobbar vi inte, vi åker hem"
+            },
+            // Тема 4: Артиклі en / ett
+            {
+                lessonId: 4,
+                topic: "Тема 4 • Артиклі en / ett",
+                uk: "Мій друг має великий будинок і маленьку собаку.",
+                hint: "min vän, har, ett stort hus, en liten hund"
+            },
+            {
+                lessonId: 4,
+                topic: "Тема 4 • Артиклі en / ett",
+                uk: "Вранці я їм яблуко і п'ю склянку води.",
+                hint: "på morgonen (V2!), äter jag ett äpple, och dricker ett glas vatten"
+            },
+            {
+                lessonId: 4,
+                topic: "Тема 4 • Артиклі en / ett",
+                uk: "У нас є машина, але немає велосипеда.",
+                hint: "vi har en bil, men vi har inte en cykel (або ingen cykel)"
+            },
+            {
+                lessonId: 4,
+                topic: "Тема 4 • Фінальне речення",
+                uk: "Сьогодні чудовий день, і я купую нову книгу.",
+                hint: "idag är det en fin dag, och jag köper en ny bok"
+            }
+        ];
+
+        /* =========================================================================
+           4. СТАН КОРИСТУВАЧА ТА ЗБЕРЕЖЕННЯ (LOCALSTORAGE)
+           ========================================================================= */
+        const STORAGE_KEY = "svenska_ai_progress_v1";
+        let userState = {
+            xp: 0,
+            streak: 1,
+            hearts: 5,
+            completedLessons: [],
+            aiHistory: []
+        };
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    userState = { ...userState, ...parsed };
+                }
+            } catch (e) {
+                // Якщо localStorage недоступний — працюємо в пам'яті
+            }
+            updateHUD();
+
+            // Додатково синхронізуємо прогрес із Telegram CloudStorage (якщо запущено в Telegram)
+            TG.loadCloud(STORAGE_KEY, (cloudJson) => {
+                if (!cloudJson) return;
+                try {
+                    const cloudState = JSON.parse(cloudJson);
+                    // Беремо більш повний прогрес (більше XP або більше пройдених тем)
+                    const cloudScore = (cloudState.xp || 0) + (cloudState.completedLessons?.length || 0) * 100;
+                    const localScore = (userState.xp || 0) + (userState.completedLessons?.length || 0) * 100;
+                    if (cloudScore > localScore) {
+                        userState = { ...userState, ...cloudState };
+                        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(userState)); } catch (e) {}
+                        updateHUD();
+                        renderLessonPath();
+                        renderAiHistory();
+                    }
+                } catch (e) {}
+            });
+        }
+
+        function saveState() {
+            const serialized = JSON.stringify(userState);
+            try {
+                localStorage.setItem(STORAGE_KEY, serialized);
+            } catch (e) {}
+            // Зберігаємо у Telegram CloudStorage (компактну версію без довгої історії, щоб гарантовано вміститись у ліміт)
+            const compactCloud = JSON.stringify({
+                xp: userState.xp,
+                streak: userState.streak,
+                hearts: userState.hearts,
+                completedLessons: userState.completedLessons
+            });
+            TG.saveCloud(STORAGE_KEY, compactCloud);
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById("hud-streak").textContent = userState.streak;
+            document.getElementById("hud-xp").textContent = userState.xp;
+            document.getElementById("hud-hearts").textContent = userState.hearts;
+
+            const done = userState.completedLessons.length;
+            const total = LESSONS.length;
+            document.getElementById("level-progress-text").textContent = `${done} / ${total} уроків`;
+            document.getElementById("level-progress-bar").style.width = `${Math.round((done / total) * 100)}%`;
+        }
+
+        /* =========================================================================
+           5. НАВІГАЦІЯ ТА РЕНДЕРИНГ ВКЛАДОК
+           ========================================================================= */
+        let activeTab = "path";
+
+        function switchTab(tab) {
+            activeTab = tab;
+            ["path", "grammar", "ai"].forEach(t => {
+                document.getElementById(`view-${t}`).classList.toggle("hidden", t !== tab);
+
+                const deskBtn = document.getElementById(`nav-desktop-${t}`);
+                const mobBtn = document.getElementById(`nav-mobile-${t}`);
+                if (t === tab) {
+                    deskBtn.className = "nav-btn px-4 py-2 rounded-2xl font-extrabold text-sm flex items-center gap-2 transition bg-sky-100 text-swedenBlue border-2 border-sky-300";
+                    mobBtn.className = "flex flex-col items-center justify-center px-4 py-1.5 rounded-2xl font-extrabold text-xs gap-0.5 transition text-swedenBlue bg-sky-50";
+                } else {
+                    deskBtn.className = "nav-btn px-4 py-2 rounded-2xl font-extrabold text-sm flex items-center gap-2 transition text-slate-500 hover:bg-slate-100 border-2 border-transparent";
+                    mobBtn.className = "flex flex-col items-center justify-center px-4 py-1.5 rounded-2xl font-extrabold text-xs gap-0.5 transition text-slate-400";
+                }
+            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        function renderLessonPath() {
+            const container = document.getElementById("lesson-path-container");
+            container.innerHTML = "";
+
+            LESSONS.forEach((lesson, index) => {
+                const isCompleted = userState.completedLessons.includes(lesson.id);
+                const isUnlocked = isLessonUnlocked(lesson.id);
+                const isNext = isUnlocked && !isCompleted;
+
+                // Зміщення вліво/вправо для змійкоподібної стежки Duolingo
+                const offsets = ["", "sm:translate-x-12", "sm:-translate-x-12", ""];
+                const offsetClass = offsets[index % offsets.length];
+                const prevCompleted = index > 0 && userState.completedLessons.includes(LESSONS[index - 1].id);
+
+                const cardBorder = isNext
+                    ? "border-duoGreen shadow-lg ring-4 ring-green-100 bg-white"
+                    : isCompleted
+                        ? "border-amber-300 shadow-sm bg-white"
+                        : "border-slate-200 bg-slate-100/80 opacity-85";
+
+                const iconCircle = isCompleted
+                    ? "bg-amber-400 border-amber-600 text-white"
+                    : isUnlocked
+                        ? `${lesson.color} text-white`
+                        : "bg-slate-300 border-slate-400 text-slate-500 cursor-not-allowed";
+
+                const actionButtonClass = isNext
+                    ? "bg-duoGreen border-duoGreenDark text-white"
+                    : isCompleted
+                        ? "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200"
+                        : "bg-slate-200 border-slate-300 text-slate-400 cursor-not-allowed";
+
+                const actionLabel = isCompleted ? "Повторити" : isUnlocked ? "Почати" : "🔒 Закрито";
+
+                const nodeHtml = `
+                    <div class="relative w-full max-w-md flex flex-col items-center ${offsetClass}">
+                        ${index > 0 ? `<div class="w-1.5 h-6 ${prevCompleted ? 'bg-duoGreen' : 'bg-slate-200'} rounded-full -mt-4 mb-2 transition-colors"></div>` : ""}
+                        <div class="w-full rounded-3xl border-2 ${cardBorder} p-4 sm:p-5 flex items-center gap-4 transition ${isUnlocked ? 'hover:scale-[1.01]' : ''}">
+                            <button onclick="startLesson(${lesson.id})" class="btn-3d shrink-0 w-16 h-16 rounded-full ${iconCircle} border-b-4 text-3xl flex items-center justify-center shadow-md relative">
+                                <span>${isCompleted ? '⭐' : isUnlocked ? lesson.icon : '🔒'}</span>
+                                ${isNext ? `<span class="absolute -top-2 -right-2 bg-duoGreen text-white text-[10px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow">ПОТОЧНА</span>` : ""}
+                            </button>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Тема ${lesson.id}</span>
+                                    <span class="text-xs font-extrabold bg-sky-50 text-swedenBlue px-2 py-0.5 rounded-lg">${lesson.steps.length} завд.</span>
+                                    <span class="text-xs font-extrabold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg">+${lesson.xpReward} XP</span>
+                                    ${isCompleted ? `<span class="text-xs font-extrabold bg-green-100 text-green-700 px-2 py-0.5 rounded-lg">✓ Пройдено</span>` : ""}
+                                </div>
+                                <h3 class="font-black text-lg ${isUnlocked ? 'text-slate-800' : 'text-slate-500'} leading-snug mt-0.5">${lesson.title}</h3>
+                                <p class="text-xs sm:text-sm font-semibold text-slate-500">${isUnlocked ? lesson.subtitle : `Пройдіть Тему ${lesson.id - 1}, щоб відкрити`}</p>
+                            </div>
+                            <button onclick="startLesson(${lesson.id})" class="btn-3d shrink-0 ${actionButtonClass} font-black text-xs sm:text-sm px-4 py-2.5 rounded-2xl border-b-4">
+                                ${actionLabel}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML("beforeend", nodeHtml);
+            });
+        }
+
+        /**
+         * Послідовне відкриття тем: Тема 1 відкрита одразу, кожна наступна відкривається після проходження попередньої.
+         */
+        function isLessonUnlocked(lessonId) {
+            const idx = LESSONS.findIndex(l => l.id === lessonId);
+            if (idx <= 0) return true;
+            return userState.completedLessons.includes(LESSONS[idx - 1].id);
+        }
+
+        function renderGrammarCards() {
+            const container = document.getElementById("grammar-cards-container");
+            container.innerHTML = GRAMMAR_GUIDES.map(g => `
+                <article class="rounded-3xl border-2 ${g.color} p-5 flex flex-col justify-between gap-4 shadow-sm">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-extrabold uppercase px-3 py-1 rounded-full ${g.badgeColor}">${g.badge}</span>
+                            <span class="text-2xl">${g.icon}</span>
+                        </div>
+                        <h3 class="text-xl font-black text-slate-800">${g.title}</h3>
+                        <p class="text-sm font-semibold text-slate-600 leading-relaxed">${g.summary}</p>
+                        <div class="space-y-2 pt-1">
+                            ${g.rows.map(r => `
+                                <button onclick="speakSwedish('${escapeJs(r.sv)}')" class="w-full text-left bg-white/90 hover:bg-white border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-3 transition group">
+                                    <div>
+                                        <p class="font-extrabold text-swedenBlue text-sm sm:text-base group-hover:text-duoBlue">${r.sv}</p>
+                                        <p class="text-xs font-semibold text-slate-500">${r.uk}</p>
+                                    </div>
+                                    <span class="text-lg opacity-60 group-hover:opacity-100 shrink-0">🔊</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    </div>
+                    <div class="bg-white/80 rounded-2xl p-3 border border-slate-200/80 text-xs font-bold text-slate-700">
+                        💡 <span class="text-slate-600">${g.tip}</span>
+                    </div>
+                </article>
+            `).join("");
+        }
+
+        /* =========================================================================
+           6. ДВИГУН УРОКІВ (DUOLINGO-МЕХАНІКИ + ШІ-РОЗБІР ПОМИЛОК)
+           ========================================================================= */
+        let currentLesson = null;
+        let currentStepIdx = 0;
+        let stepChecked = false;
+        let stepCorrect = false;
+        let selectedChoice = null;
+        let wordBankSelected = []; // масив індексів вибраних слів
+        let lastUserAnswerForAI = "";
+
+        function startLesson(lessonId) {
+            if (!isLessonUnlocked(lessonId)) {
+                SFX.wrong();
+                showToast(`🔒 Спочатку пройдіть Тему ${lessonId - 1}, щоб відкрити цю тему!`, 3200);
+                return;
+            }
+            if (userState.hearts <= 0) {
+                openHeartsModal();
+                return;
+            }
+            const lesson = LESSONS.find(l => l.id === lessonId);
+            if (!lesson) return;
+
+            currentLesson = lesson;
+            currentStepIdx = 0;
+            document.getElementById("lesson-overlay").classList.remove("hidden");
+            document.body.classList.add("overflow-hidden");
+            TG.setBackButton(true);
+            renderCurrentStep();
+        }
+
+        function renderCurrentStep() {
+            const step = currentLesson.steps[currentStepIdx];
+            stepChecked = false;
+            stepCorrect = false;
+            selectedChoice = null;
+            wordBankSelected = [];
+            lastUserAnswerForAI = "";
+
+            // Оновити заголовок, лічильник кроків, прогрес-бар та серця
+            document.getElementById("lesson-header-title").textContent = `Тема ${currentLesson.id}: ${currentLesson.title}`;
+            document.getElementById("lesson-step-counter").textContent = `${currentStepIdx + 1} / ${currentLesson.steps.length}`;
+            const pct = Math.round(((currentStepIdx) / currentLesson.steps.length) * 100);
+            document.getElementById("lesson-progress-bar").style.width = `${Math.max(8, pct)}%`;
+            document.getElementById("lesson-hearts-count").textContent = userState.hearts;
+
+            // Скинути нижню панель
+            const footer = document.getElementById("lesson-footer");
+            footer.className = "border-t-2 border-slate-200 bg-white transition-colors duration-200";
+            document.getElementById("lesson-feedback-box").classList.add("hidden");
+            document.getElementById("lesson-ai-help-wrapper").classList.add("hidden");
+            document.getElementById("lesson-ai-explain-output").classList.add("hidden");
+
+            const actionBtn = document.getElementById("lesson-action-btn");
+            const skipBtn = document.getElementById("lesson-skip-btn");
+            actionBtn.className = "btn-3d w-full sm:w-auto sm:min-w-[190px] ml-auto bg-duoGreen hover:bg-green-500 disabled:bg-slate-200 disabled:text-slate-400 disabled:border-slate-300 text-white font-black py-3.5 px-8 rounded-2xl border-b-4 border-duoGreenDark uppercase tracking-wide text-sm sm:text-base";
+
+            const container = document.getElementById("lesson-step-container");
+
+            if (step.type === "theory") {
+                skipBtn.classList.add("hidden");
+                actionBtn.disabled = false;
+                actionBtn.textContent = "Зрозуміло! Далі";
+                stepChecked = true; // Теорія переходить одразу далі
+
+                container.innerHTML = `
+                    <div class="space-y-6 animate-pop">
+                        <div class="inline-flex items-center gap-2 bg-sky-100 text-swedenBlue font-extrabold text-xs uppercase px-3 py-1.5 rounded-full">
+                            <span>📘</span> ${step.badge}
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-black text-slate-800">${step.title}</h2>
+                        <p class="text-base sm:text-lg font-semibold text-slate-600 leading-relaxed bg-slate-50 border-2 border-slate-200 rounded-2xl p-4">
+                            ${step.explanation}
+                        </p>
+                        <div class="space-y-3">
+                            <p class="text-xs font-extrabold uppercase text-slate-400 tracking-wider">Приклади (натисніть, щоб послухати):</p>
+                            ${step.examples.map(ex => `
+                                <button onclick="speakSwedish('${escapeJs(ex.sv)}')" class="btn-3d w-full text-left bg-white hover:bg-sky-50 border-2 border-slate-200 border-b-4 rounded-2xl p-4 flex items-center justify-between gap-4">
+                                    <div>
+                                        <p class="font-black text-lg text-swedenBlue">${ex.sv}</p>
+                                        <p class="text-sm font-bold text-slate-500 mt-0.5">${ex.uk}</p>
+                                    </div>
+                                    <span class="w-11 h-11 rounded-xl bg-sky-100 text-swedenBlue flex items-center justify-center text-xl shrink-0">🔊</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    </div>
+                `;
+            } else if (step.type === "choice") {
+                skipBtn.classList.remove("hidden");
+                skipBtn.textContent = "💡 Підказка";
+                actionBtn.disabled = true;
+                actionBtn.textContent = "Перевірити";
+
+                container.innerHTML = `
+                    <div class="space-y-6 animate-pop">
+                        <div>
+                            <span class="text-xs font-extrabold uppercase tracking-wider text-duoBlue">Оберіть правильний варіант</span>
+                            <h2 class="text-2xl sm:text-3xl font-black text-slate-800 mt-1">${step.prompt}</h2>
+                        </div>
+                        <div id="choice-options" class="grid grid-cols-1 gap-3">
+                            ${step.options.map((opt, idx) => `
+                                <button data-opt="${escapeAttr(opt)}" onclick="selectChoiceOption(this, '${escapeJs(opt)}')" class="choice-opt btn-3d text-left w-full bg-white hover:bg-slate-50 border-2 border-slate-200 border-b-4 rounded-2xl p-4 font-extrabold text-base sm:text-lg text-slate-700 flex items-center gap-3">
+                                    <span class="w-8 h-8 rounded-xl border-2 border-slate-200 flex items-center justify-center text-xs font-black text-slate-400 shrink-0">${idx + 1}</span>
+                                    <span>${opt}</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    </div>
+                `;
+            } else if (step.type === "fix_mistake") {
+                skipBtn.classList.remove("hidden");
+                skipBtn.textContent = "💡 Підказка";
+                actionBtn.disabled = true;
+                actionBtn.textContent = "Перевірити";
+
+                container.innerHTML = `
+                    <div class="space-y-5 animate-pop">
+                        <div>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider bg-rose-100 text-rose-700 px-3 py-1 rounded-full">🛠️ Знайди та виправ помилку</span>
+                            <h2 class="text-xl sm:text-2xl font-black text-slate-800 mt-2">${step.prompt}</h2>
+                        </div>
+                        <div class="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-center gap-3">
+                            <span class="text-2xl shrink-0">❌</span>
+                            <p class="text-lg sm:text-xl font-black text-rose-800 line-through decoration-rose-400">${escapeHtml(step.wrongSentence)}</p>
+                        </div>
+                        <div id="choice-options" class="grid grid-cols-1 gap-3">
+                            ${step.options.map((opt, idx) => `
+                                <button data-opt="${escapeAttr(opt)}" onclick="selectChoiceOption(this, '${escapeJs(opt)}')" class="choice-opt btn-3d text-left w-full bg-white hover:bg-slate-50 border-2 border-slate-200 border-b-4 rounded-2xl p-4 font-extrabold text-base sm:text-lg text-slate-700 flex items-center gap-3">
+                                    <span class="w-8 h-8 rounded-xl border-2 border-slate-200 flex items-center justify-center text-xs font-black text-slate-400 shrink-0">${idx + 1}</span>
+                                    <span>${opt}</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    </div>
+                `;
+            } else if (step.type === "wordbank") {
+                skipBtn.classList.remove("hidden");
+                skipBtn.textContent = "💡 Підказка";
+                actionBtn.disabled = true;
+                actionBtn.textContent = "Перевірити";
+
+                // Перемішуємо слова один раз на крок
+                step._shuffled = [...step.words].sort(() => Math.random() - 0.5);
+
+                container.innerHTML = `
+                    <div class="space-y-6 animate-pop">
+                        <div>
+                            <span class="text-xs font-extrabold uppercase tracking-wider text-duoGreen">Складіть речення шведською</span>
+                            <div class="mt-2 flex items-center gap-3 bg-sky-50 border-2 border-sky-200 rounded-2xl p-4">
+                                <span class="text-3xl">🫎</span>
+                                <p class="text-xl sm:text-2xl font-black text-slate-800">${step.prompt}</p>
+                            </div>
+                        </div>
+
+                        <!-- Зона зібраного речення -->
+                        <div id="wordbank-answer-zone" class="min-h-[76px] p-3 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-wrap gap-2 items-center">
+                            <span class="text-sm font-bold text-slate-400 px-2">Натискайте на слова нижче, щоб побудувати речення...</span>
+                        </div>
+
+                        <!-- Банк доступних слів -->
+                        <div id="wordbank-pool" class="flex flex-wrap gap-2.5 justify-center pt-2"></div>
+                    </div>
+                `;
+                renderWordBankUI();
+            } else if (step.type === "ai_write") {
+                skipBtn.classList.remove("hidden");
+                skipBtn.textContent = "💡 Підказка";
+                actionBtn.disabled = true;
+                actionBtn.textContent = "✨ Перевірити з ШІ";
+
+                container.innerHTML = `
+                    <div class="space-y-5 animate-pop">
+                        <div class="inline-flex items-center gap-1.5 bg-purple-100 text-purple-800 font-extrabold text-xs uppercase px-3 py-1.5 rounded-full">
+                            <span>🤖</span> Перевірка речення за допомогою ШІ
+                        </div>
+                        <h2 class="text-xl sm:text-2xl font-black text-slate-800">Перекладіть шведською самостійно:</h2>
+                        <div class="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4">
+                            <p class="text-xl sm:text-2xl font-black text-purple-950">${step.prompt}</p>
+                            <p class="text-xs sm:text-sm font-bold text-purple-700 mt-1.5">💡 ${step.hint}</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-extrabold uppercase text-slate-400">Ваша відповідь шведською</span>
+                                <div class="flex gap-1.5">
+                                    <button type="button" onclick="insertSwedishChar('lesson-ai-input', 'å')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-purple-100 border border-slate-300 font-black text-sm">å</button>
+                                    <button type="button" onclick="insertSwedishChar('lesson-ai-input', 'ä')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-purple-100 border border-slate-300 font-black text-sm">ä</button>
+                                    <button type="button" onclick="insertSwedishChar('lesson-ai-input', 'ö')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-purple-100 border border-slate-300 font-black text-sm">ö</button>
+                                </div>
+                            </div>
+                            <textarea id="lesson-ai-input" rows="3" oninput="document.getElementById('lesson-action-btn').disabled = this.value.trim().length < 2;"
+                                placeholder="Напишіть речення шведською..."
+                                class="w-full rounded-2xl border-2 border-slate-300 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 p-4 text-lg font-bold text-slate-800 outline-none resize-none"></textarea>
+                        </div>
+
+                        <div id="lesson-ai-checking-spinner" class="hidden py-3 flex items-center justify-center gap-3 text-purple-700 font-extrabold text-sm">
+                            <div class="w-6 h-6 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+                            <span>ШІ перевіряє граматику та шукає помилки...</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function selectChoiceOption(btnEl, value) {
+            if (stepChecked) return;
+            SFX.tap();
+            selectedChoice = value;
+            document.querySelectorAll(".choice-opt").forEach(el => {
+                el.className = "choice-opt btn-3d text-left w-full bg-white hover:bg-slate-50 border-2 border-slate-200 border-b-4 rounded-2xl p-4 font-extrabold text-base sm:text-lg text-slate-700 flex items-center gap-3";
+            });
+            btnEl.className = "choice-opt btn-3d text-left w-full bg-sky-50 border-2 border-duoBlue border-b-4 rounded-2xl p-4 font-extrabold text-base sm:text-lg text-swedenBlue flex items-center gap-3";
+            document.getElementById("lesson-action-btn").disabled = false;
+        }
+
+        function renderWordBankUI() {
+            const step = currentLesson.steps[currentStepIdx];
+            const answerZone = document.getElementById("wordbank-answer-zone");
+            const pool = document.getElementById("wordbank-pool");
+
+            if (wordBankSelected.length === 0) {
+                answerZone.innerHTML = `<span class="text-sm font-bold text-slate-400 px-2">Натискайте на слова нижче, щоб побудувати речення...</span>`;
+            } else {
+                answerZone.innerHTML = wordBankSelected.map((wordIdx, pos) => `
+                    <button onclick="removeWordFromAnswer(${pos})" class="btn-3d bg-white border-2 border-sky-300 border-b-4 text-swedenBlue font-extrabold px-4 py-2 rounded-2xl text-base hover:bg-sky-50">
+                        ${step._shuffled[wordIdx]}
+                    </button>
+                `).join("");
+            }
+
+            pool.innerHTML = step._shuffled.map((word, idx) => {
+                const isUsed = wordBankSelected.includes(idx);
+                return `
+                    <button ${isUsed ? "disabled" : ""} onclick="addWordToAnswer(${idx})"
+                        class="btn-3d font-extrabold px-4 py-2.5 rounded-2xl text-base border-2 border-b-4 transition ${
+                            isUsed
+                                ? "bg-slate-200 border-slate-200 text-transparent cursor-default"
+                                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-800"
+                        }">
+                        ${word}
+                    </button>
+                `;
+            }).join("");
+
+            document.getElementById("lesson-action-btn").disabled = wordBankSelected.length === 0;
+        }
+
+        function addWordToAnswer(wordIdx) {
+            if (stepChecked) return;
+            SFX.tap();
+            const step = currentLesson.steps[currentStepIdx];
+            speakSwedish(step._shuffled[wordIdx]);
+            wordBankSelected.push(wordIdx);
+            renderWordBankUI();
+        }
+
+        function removeWordFromAnswer(pos) {
+            if (stepChecked) return;
+            SFX.tap();
+            wordBankSelected.splice(pos, 1);
+            renderWordBankUI();
+        }
+
+        function skipOrHintStep() {
+            const step = currentLesson.steps[currentStepIdx];
+            if (step.hint) {
+                showToast("💡 " + step.hint, 4000);
+            }
+        }
+
+        async function handleLessonPrimaryAction() {
+            const step = currentLesson.steps[currentStepIdx];
+
+            // Якщо крок уже перевірено — переходимо до наступного
+            if (stepChecked) {
+                currentStepIdx++;
+                if (currentStepIdx >= currentLesson.steps.length) {
+                    finishLesson();
+                } else {
+                    renderCurrentStep();
+                }
+                return;
+            }
+
+            // Перевірка залежно від типу кроку
+            if (step.type === "choice" || step.type === "fix_mistake") {
+                lastUserAnswerForAI = selectedChoice;
+                const isOk = selectedChoice === step.correct;
+                if (step.audio) speakSwedish(step.audio);
+                showStepFeedback(isOk, step.correct, step.grammarNote);
+            } else if (step.type === "wordbank") {
+                const built = wordBankSelected.map(i => step._shuffled[i]).join(" ");
+                const expected = step.answer.join(" ");
+                lastUserAnswerForAI = built;
+                const isOk = built.trim() === expected.trim();
+                if (step.audio) speakSwedish(step.audio);
+                showStepFeedback(isOk, expected, step.grammarNote);
+            } else if (step.type === "ai_write") {
+                const inputEl = document.getElementById("lesson-ai-input");
+                const userText = inputEl.value.trim();
+                if (!userText) return;
+                lastUserAnswerForAI = userText;
+
+                const actionBtn = document.getElementById("lesson-action-btn");
+                const spinner = document.getElementById("lesson-ai-checking-spinner");
+                actionBtn.disabled = true;
+                spinner.classList.remove("hidden");
+
+                try {
+                    const evalResult = await evaluateSwedishSentenceAI(userText, step.prompt);
+                    spinner.classList.add("hidden");
+                    inputEl.disabled = true;
+
+                    speakSwedish(evalResult.correctedSwedish);
+                    showStepFeedback(
+                        evalResult.isCorrect,
+                        evalResult.correctedSwedish,
+                        evalResult.overallFeedbackUk,
+                        evalResult // передаємо повний структурований розбір ШІ!
+                    );
+                } catch (err) {
+                    spinner.classList.add("hidden");
+                    actionBtn.disabled = false;
+                    // Запасна базова перевірка, якщо ШІ тимчасово недоступний
+                    const isRoughMatch = normalizeSwedish(userText) === normalizeSwedish(step.sampleAnswer);
+                    showToast("ШІ тимчасово зайнятий — виконано базову перевірку", 3500);
+                    showStepFeedback(isRoughMatch, step.sampleAnswer, step.grammarNote);
+                }
+            }
+        }
+
+        function showStepFeedback(isOk, correctAnswer, note, aiStructuredEval = null) {
+            stepChecked = true;
+            stepCorrect = isOk;
+
+            const footer = document.getElementById("lesson-footer");
+            const fbBox = document.getElementById("lesson-feedback-box");
+            const fbIcon = document.getElementById("feedback-icon");
+            const fbTitle = document.getElementById("feedback-title");
+            const fbDetail = document.getElementById("feedback-detail");
+            const actionBtn = document.getElementById("lesson-action-btn");
+            const aiHelpWrap = document.getElementById("lesson-ai-help-wrapper");
+            const aiExplainBtn = document.getElementById("lesson-ai-explain-btn");
+            const aiExplainOut = document.getElementById("lesson-ai-explain-output");
+
+            fbBox.classList.remove("hidden");
+            document.getElementById("lesson-skip-btn").classList.add("hidden");
+
+            if (isOk) {
+                SFX.correct();
+                footer.className = "border-t-2 border-green-200 bg-green-50 transition-colors duration-200";
+                fbIcon.className = "w-10 h-10 rounded-full bg-duoGreen text-white flex items-center justify-center text-xl shrink-0 font-black";
+                fbIcon.textContent = "✓";
+                fbTitle.className = "font-black text-lg leading-tight text-green-800";
+                fbTitle.textContent = "Чудово! Правильно 🎉";
+                fbDetail.className = "font-bold text-sm mt-0.5 text-green-700";
+                fbDetail.innerHTML = `${note || ""}${aiStructuredEval ? ` <span class="block mt-1 text-swedenBlue">🇸🇪 ${escapeHtml(aiStructuredEval.correctedSwedish)}</span>` : ""}`;
+
+                actionBtn.disabled = false;
+                actionBtn.className = "btn-3d w-full sm:w-auto sm:min-w-[190px] ml-auto bg-duoGreen hover:bg-green-500 text-white font-black py-3.5 px-8 rounded-2xl border-b-4 border-duoGreenDark uppercase tracking-wide text-sm sm:text-base";
+                actionBtn.textContent = "Продовжити";
+            } else {
+                SFX.wrong();
+                userState.hearts = Math.max(0, userState.hearts - 1);
+                saveState();
+                document.getElementById("lesson-hearts-count").textContent = userState.hearts;
+
+                footer.className = "border-t-2 border-rose-200 bg-rose-50 transition-colors duration-200";
+                fbIcon.className = "w-10 h-10 rounded-full bg-duoRed text-white flex items-center justify-center text-xl shrink-0 font-black";
+                fbIcon.textContent = "✕";
+                fbTitle.className = "font-black text-lg leading-tight text-rose-800";
+                fbTitle.textContent = "Є помилка — розберімося!";
+                fbDetail.className = "font-bold text-sm mt-0.5 text-rose-700";
+                fbDetail.innerHTML = `Правильний варіант: <strong class="text-slate-900 bg-white px-2 py-0.5 rounded-lg">${escapeHtml(correctAnswer)}</strong><br><span class="text-rose-700/90 mt-1 inline-block">${escapeHtml(note || "")}</span>`;
+
+                actionBtn.disabled = false;
+                actionBtn.className = "btn-3d w-full sm:w-auto sm:min-w-[190px] ml-auto bg-duoRed hover:bg-red-500 text-white font-black py-3.5 px-8 rounded-2xl border-b-4 border-duoRedDark uppercase tracking-wide text-sm sm:text-base";
+                actionBtn.textContent = "Зрозуміло, далі";
+
+                // Показуємо розбір помилок від ШІ
+                aiHelpWrap.classList.remove("hidden");
+                if (aiStructuredEval && aiStructuredEval.mistakes && aiStructuredEval.mistakes.length > 0) {
+                    aiExplainBtn.classList.add("hidden");
+                    aiExplainOut.classList.remove("hidden");
+                    aiExplainOut.innerHTML = renderMistakesListHtml(aiStructuredEval.mistakes, aiStructuredEval.grammarTipUk);
+                } else {
+                    aiExplainBtn.classList.remove("hidden");
+                    aiExplainOut.classList.add("hidden");
+                }
+            }
+        }
+
+        /**
+         * Пояснення помилки користувача прямо всередині уроку через Gemini API.
+         */
+        async function explainLessonMistakeWithAI() {
+            const step = currentLesson.steps[currentStepIdx];
+            const btn = document.getElementById("lesson-ai-explain-btn");
+            const out = document.getElementById("lesson-ai-explain-output");
+
+            btn.disabled = true;
+            btn.innerHTML = `<span class="inline-block w-4 h-4 border-2 border-indigo-300 border-t-indigo-700 rounded-full animate-spin"></span> ШІ аналізує помилку...`;
+
+            try {
+                const expected = (step.type === "choice" || step.type === "fix_mistake") ? step.correct : step.type === "wordbank" ? step.answer.join(" ") : step.sampleAnswer;
+                const evalRes = await evaluateSwedishSentenceAI(lastUserAnswerForAI, `${step.prompt} (очікуваний зразок: ${expected})`);
+
+                btn.classList.add("hidden");
+                out.classList.remove("hidden");
+                out.innerHTML = `
+                    <p class="font-extrabold text-indigo-800">🤖 Розбір від ШІ-репетитора:</p>
+                    <p class="font-semibold text-slate-700">${escapeHtml(evalRes.overallFeedbackUk)}</p>
+                    ${renderMistakesListHtml(evalRes.mistakes, evalRes.grammarTipUk)}
+                `;
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerHTML = `<span>✨</span> Спробувати пояснити з ШІ ще раз`;
+                showToast("Не вдалося з'єднатися з ШІ. Спробуйте ще раз.");
+            }
+        }
+
+        function finishLesson() {
+            SFX.fanfare();
+            const alreadyDone = userState.completedLessons.includes(currentLesson.id);
+            const earnedXp = alreadyDone ? Math.round(currentLesson.xpReward / 2) : currentLesson.xpReward;
+            userState.xp += earnedXp;
+            if (!alreadyDone) {
+                userState.completedLessons.push(currentLesson.id);
+            }
+            saveState();
+
+            document.getElementById("lesson-overlay").classList.add("hidden");
+            document.body.classList.remove("overflow-hidden");
+            TG.setBackButton(false);
+            renderLessonPath();
+
+            const nextLesson = LESSONS.find(l => l.id === currentLesson.id + 1);
+
+            if (nextLesson) {
+                openModal({
+                    emoji: "🎉",
+                    title: `Тему ${currentLesson.id} пройдено!`,
+                    body: `Чудова робота! Ви отримали +${earnedXp} XP і щойно відкрили наступну тему: «Тема ${nextLesson.id}: ${nextLesson.title}». Переходимо далі?`,
+                    actions: [
+                        {
+                            label: `➡️ Перейти до Теми ${nextLesson.id}`,
+                            style: "bg-duoGreen border-duoGreenDark text-white",
+                            onClick: () => {
+                                closeModal();
+                                startLesson(nextLesson.id);
+                            }
+                        },
+                        {
+                            label: "До карти тем",
+                            style: "bg-slate-100 border-slate-300 text-slate-700",
+                            onClick: () => closeModal()
+                        }
+                    ]
+                });
+            } else {
+                openModal({
+                    emoji: "🏆",
+                    title: "Вітаємо! Весь Рівень 1 пройдено!",
+                    body: `Ви опанували всі 4 граматичні теми (+${earnedXp} XP) і тепер можете вільно будувати базові речення шведською! Закріпіть навички з ШІ-тренером.`,
+                    actions: [
+                        {
+                            label: "✨ Практикувати речення з ШІ",
+                            style: "bg-indigo-600 border-indigo-800 text-white",
+                            onClick: () => { closeModal(); switchTab("ai"); }
+                        },
+                        {
+                            label: "До карти тем",
+                            style: "bg-duoGreen border-duoGreenDark text-white",
+                            onClick: () => closeModal()
+                        }
+                    ]
+                });
+            }
+        }
+
+        function confirmExitLesson() {
+            openModal({
+                emoji: "🤔",
+                title: "Вийти з уроку?",
+                body: "Прогрес поточного уроку не збережеться. Ви впевнені, що хочете повернутися до карти тем?",
+                actions: [
+                    {
+                        label: "Залишитись",
+                        style: "bg-duoGreen border-duoGreenDark text-white",
+                        onClick: () => closeModal()
+                    },
+                    {
+                        label: "Вийти",
+                        style: "bg-slate-100 border-slate-300 text-slate-700",
+                        onClick: () => {
+                            closeModal();
+                            document.getElementById("lesson-overlay").classList.add("hidden");
+                            document.body.classList.remove("overflow-hidden");
+                            TG.setBackButton(false);
+                        }
+                    }
+                ]
+            });
+        }
+
+        /* =========================================================================
+           7. ШІ-ТРЕНЕР РЕЧЕНЬ, ПОШУК ПОМИЛОК ТА ЗАПИТАННЯ ПО ГРАМАТИЦІ
+           ========================================================================= */
+        let aiMode = "task"; // 'task' | 'free' | 'ask'
+        let aiTopicFilter = 0; // 0 = усі теми, 1..4 = конкретна тема
+        let currentAiTaskIndex = 0;
+        let activeAiTask = { ...CURATED_AI_TASKS[0] };
+
+        function getFilteredAiTasks() {
+            if (aiTopicFilter === 0) return CURATED_AI_TASKS;
+            return CURATED_AI_TASKS.filter(t => t.lessonId === aiTopicFilter);
+        }
+
+        function setAiTopicFilter(topicId) {
+            SFX.tap();
+            aiTopicFilter = topicId;
+            currentAiTaskIndex = 0;
+            const filtered = getFilteredAiTasks();
+            activeAiTask = { ...filtered[0] };
+
+            document.querySelectorAll(".ai-topic-pill").forEach(btn => {
+                const isSelected = Number(btn.dataset.topic) === topicId;
+                btn.className = isSelected
+                    ? "ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-swedenBlue text-white transition"
+                    : "ai-topic-pill text-xs font-extrabold px-3 py-1 rounded-xl bg-white text-slate-600 border border-sky-200 hover:bg-sky-100 transition";
+            });
+
+            renderActiveAiTask();
+            document.getElementById("ai-swedish-input").value = "";
+            document.getElementById("ai-feedback-container").classList.add("hidden");
+        }
+
+        function setAiMode(mode) {
+            SFX.tap();
+            aiMode = mode;
+
+            const activeBtnClass = "flex-1 py-2.5 px-4 rounded-xl font-extrabold text-sm transition bg-indigo-600 text-white shadow-sm";
+            const inactiveBtnClass = "flex-1 py-2.5 px-4 rounded-xl font-extrabold text-sm transition text-slate-600 hover:bg-slate-100";
+
+            document.getElementById("ai-mode-task-btn").className = mode === "task" ? activeBtnClass : inactiveBtnClass;
+            document.getElementById("ai-mode-free-btn").className = mode === "free" ? activeBtnClass : inactiveBtnClass;
+            document.getElementById("ai-mode-ask-btn").className = mode === "ask" ? activeBtnClass : inactiveBtnClass;
+
+            const sentenceLab = document.getElementById("ai-sentence-lab");
+            const askLab = document.getElementById("ai-ask-lab");
+            const taskBox = document.getElementById("ai-task-box");
+            const freeBox = document.getElementById("ai-free-box");
+
+            if (mode === "ask") {
+                sentenceLab.classList.add("hidden");
+                askLab.classList.remove("hidden");
+            } else {
+                sentenceLab.classList.remove("hidden");
+                askLab.classList.add("hidden");
+                taskBox.classList.toggle("hidden", mode !== "task");
+                freeBox.classList.toggle("hidden", mode !== "free");
+            }
+
+            document.getElementById("ai-feedback-container").classList.add("hidden");
+        }
+
+        function renderActiveAiTask() {
+            document.getElementById("ai-task-badge").textContent = activeAiTask.topic;
+            document.getElementById("ai-task-prompt").textContent = activeAiTask.uk;
+            document.getElementById("ai-task-hint").textContent = `💡 Підказка слів: ${activeAiTask.hint}`;
+        }
+
+        function nextCuratedAiTask() {
+            SFX.tap();
+            const filtered = getFilteredAiTasks();
+            currentAiTaskIndex = (currentAiTaskIndex + 1) % filtered.length;
+            activeAiTask = { ...filtered[currentAiTaskIndex] };
+            renderActiveAiTask();
+            document.getElementById("ai-swedish-input").value = "";
+            document.getElementById("ai-feedback-container").classList.add("hidden");
+        }
+
+        /**
+         * Генерує свіже завдання рівня A1 для тренування побудови речень через Gemini API.
+         */
+        async function generateAiTask() {
+            const btn = document.getElementById("btn-gen-ai-task");
+            btn.disabled = true;
+            btn.innerHTML = `<span class="inline-block w-3.5 h-3.5 border-2 border-purple-300 border-t-purple-700 rounded-full animate-spin"></span> Генерую...`;
+
+            const topicHints = {
+                0: "правило V2, дієслова теперішнього часу, inte або артиклі en/ett",
+                1: "особові займенники (jag, du, han, hon, vi, de) та дієслово är / heter",
+                2: "дієслова теперішнього часу на -r (bor, talar, dricker, läser, jobbar, köper)",
+                3: "правило порядку слів V2, заперечення inte або побудова питання",
+                4: "артиклі en та ett в одному реченні"
+            };
+
+            try {
+                const payload = {
+                    contents: [{
+                        parts: [{
+                            text: `Придумай одне нове цікаве повсякденне речення українською мовою для початківця (рівень A1), яке тренує тему: ${topicHints[aiTopicFilter]}. Уникай повторення попередніх прикладів ("${activeAiTask.uk}"). Додай коротку підказку ключових шведських слів.`
+                        }]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                topic: { type: "STRING" },
+                                uk: { type: "STRING" },
+                                hint: { type: "STRING" }
+                            },
+                            required: ["topic", "uk", "hint"]
+                        }
+                    }
+                };
+                const res = await callGeminiAPI(payload);
+                const rawText = res?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!rawText) throw new Error("Порожня відповідь");
+                const generated = JSON.parse(rawText);
+                activeAiTask = {
+                    lessonId: aiTopicFilter,
+                    topic: generated.topic || "Завдання від ШІ",
+                    uk: generated.uk,
+                    hint: generated.hint
+                };
+                renderActiveAiTask();
+                document.getElementById("ai-swedish-input").value = "";
+                document.getElementById("ai-feedback-container").classList.add("hidden");
+                showToast("✨ ШІ згенерував нове завдання!");
+            } catch (e) {
+                showToast("Не вдалося згенерувати завдання. Показуємо наступне з бази.");
+                nextCuratedAiTask();
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<span>✨</span> Нове від ШІ`;
+            }
+        }
+
+        /**
+         * Перевіряє введене користувачем шведське речення за допомогою ШІ.
+         */
+        async function checkSentenceWithAI() {
+            const inputEl = document.getElementById("ai-swedish-input");
+            const userText = inputEl.value.trim();
+            if (userText.length < 2) {
+                showToast("Напишіть хоча б кілька слів шведською для перевірки!");
+                inputEl.focus();
+                return;
+            }
+
+            const btn = document.getElementById("ai-check-btn");
+            const loading = document.getElementById("ai-loading");
+            const fbContainer = document.getElementById("ai-feedback-container");
+
+            btn.disabled = true;
+            loading.classList.remove("hidden");
+            fbContainer.classList.add("hidden");
+
+            try {
+                const targetUk = aiMode === "task" ? activeAiTask.uk : null;
+                const result = await evaluateSwedishSentenceAI(userText, targetUk);
+
+                loading.classList.add("hidden");
+                fbContainer.classList.remove("hidden");
+
+                if (result.isCorrect) {
+                    SFX.correct();
+                    userState.xp += 15;
+                } else {
+                    SFX.wrong();
+                    userState.xp += 5; // Нагороджуємо за практику навіть із помилками!
+                }
+
+                // Зберігаємо в історію
+                userState.aiHistory.unshift({
+                    userSwedish: userText,
+                    correctedSwedish: result.correctedSwedish,
+                    isCorrect: result.isCorrect,
+                    score: result.score,
+                    mistakesCount: result.mistakes.length
+                });
+                userState.aiHistory = userState.aiHistory.slice(0, 8);
+                saveState();
+                renderAiHistory();
+
+                // Відображення детального розбору
+                const headerBg = result.isCorrect
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                    : "bg-rose-50 border-rose-300 text-rose-900";
+
+                fbContainer.innerHTML = `
+                    <div class="rounded-2xl border-2 ${headerBg} p-4 sm:p-5 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex items-center gap-2.5">
+                                <span class="text-2xl">${result.isCorrect ? "🎉" : "🛠️"}</span>
+                                <div>
+                                    <h4 class="font-black text-lg">${result.isCorrect ? "Бездоганно! (+15 XP)" : `Знайдено помилки (${result.mistakes.length}) • +5 XP за практику`}</h4>
+                                    <p class="text-xs font-bold opacity-80">Оцінка граматики: ${result.score}/100</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="font-bold text-sm sm:text-base leading-relaxed">${escapeHtml(result.overallFeedbackUk)}</p>
+
+                        <!-- Правильний варіант шведською з озвученням -->
+                        <div class="bg-white rounded-2xl border border-slate-200 p-4 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">Правильний варіант шведською:</span>
+                                <div class="flex gap-1.5">
+                                    <button onclick="speakSwedish('${escapeJs(result.correctedSwedish)}', false)" class="px-2.5 py-1 rounded-xl bg-sky-100 hover:bg-sky-200 text-swedenBlue font-extrabold text-xs">🔊 Слухати</button>
+                                    <button onclick="speakSwedish('${escapeJs(result.correctedSwedish)}', true)" class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-extrabold text-xs">🐢 Повільно</button>
+                                </div>
+                            </div>
+                            <p class="text-lg sm:text-xl font-black text-swedenBlue">${escapeHtml(result.correctedSwedish)}</p>
+                            <p class="text-xs sm:text-sm font-semibold text-slate-500">Переклад вашого речення: «${escapeHtml(result.ukrainianTranslation)}»</p>
+                        </div>
+
+                        <!-- Детальний список кожної помилки -->
+                        ${renderMistakesListHtml(result.mistakes, result.grammarTipUk)}
+                    </div>
+                `;
+            } catch (err) {
+                loading.classList.add("hidden");
+                fbContainer.classList.remove("hidden");
+                const isKeyErr = err && err.message === "API_KEY_REQUIRED";
+                fbContainer.innerHTML = isKeyErr
+                    ? `
+                        <div class="rounded-2xl border-2 border-indigo-300 bg-indigo-50 p-4 text-indigo-900 font-bold text-sm space-y-2">
+                            <p>🔑 Для роботи ШІ на зовнішньому хостингу або в Telegram-боті додайте свій безкоштовний Gemini API ключ.</p>
+                            <button onclick="openSettingsModal()" class="btn-3d bg-indigo-600 text-white font-black text-xs px-4 py-2 rounded-xl border-b-4 border-indigo-800">⚙️ Відкрити налаштування</button>
+                        </div>
+                    `
+                    : `
+                        <div class="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-amber-900 font-bold text-sm">
+                            ⚠️ Не вдалося отримати відповідь від ШІ-сервера. Перевірте інтернет-з'єднання та спробуйте ще раз через кілька секунд.
+                        </div>
+                    `;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function renderMistakesListHtml(mistakes, grammarTipUk) {
+            let html = "";
+            if (mistakes && mistakes.length > 0) {
+                html += `<div class="space-y-2.5">
+                    <p class="text-xs font-extrabold uppercase tracking-wider text-rose-700">Детальний розбір помилок:</p>
+                    ${mistakes.map(m => `
+                        <div class="bg-white rounded-2xl border border-rose-200 p-3.5 space-y-1.5 shadow-xs">
+                            <div class="flex flex-wrap items-center gap-2 text-sm font-black">
+                                <span class="bg-rose-100 text-rose-700 line-through px-2 py-0.5 rounded-lg">${escapeHtml(m.wrongPart)}</span>
+                                <span class="text-slate-400">→</span>
+                                <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">${escapeHtml(m.correctPart)}</span>
+                                <span class="ml-auto text-[11px] font-extrabold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg border border-indigo-100">${escapeHtml(m.ruleName)}</span>
+                            </div>
+                            <p class="text-xs sm:text-sm font-semibold text-slate-600 leading-snug">${escapeHtml(m.explanationUk)}</p>
+                        </div>
+                    `).join("")}
+                </div>`;
+            }
+
+            if (grammarTipUk) {
+                html += `
+                    <div class="bg-amber-50/90 border border-amber-200 rounded-2xl p-3 text-xs sm:text-sm font-bold text-amber-900">
+                        💡 <strong>Порада на майбутнє:</strong> ${escapeHtml(grammarTipUk)}
+                    </div>
+                `;
+            }
+            return html;
+        }
+
+        function renderAiHistory() {
+            const section = document.getElementById("ai-history-section");
+            const list = document.getElementById("ai-history-list");
+            if (!userState.aiHistory || userState.aiHistory.length === 0) {
+                section.classList.add("hidden");
+                return;
+            }
+
+            section.classList.remove("hidden");
+            list.innerHTML = userState.aiHistory.map(item => `
+                <div class="bg-white rounded-2xl border-2 border-slate-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-sm font-extrabold ${item.isCorrect ? 'text-emerald-700' : 'text-rose-700'}">
+                            ${item.isCorrect ? '✓' : '🛠️'} ${escapeHtml(item.userSwedish)}
+                        </p>
+                        ${!item.isCorrect ? `<p class="text-xs font-bold text-swedenBlue mt-0.5">→ ${escapeHtml(item.correctedSwedish)}</p>` : ''}
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-xs font-black px-2.5 py-1 rounded-xl ${item.isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            ${item.score}/100
+                        </span>
+                        <button onclick="speakSwedish('${escapeJs(item.correctedSwedish)}')" class="p-1.5 rounded-lg bg-slate-100 hover:bg-sky-100 text-sm" title="Прослухати">🔊</button>
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        function quickAskAi(question) {
+            document.getElementById("ai-question-input").value = question;
+            askGrammarQuestion();
+        }
+
+        async function askGrammarQuestion() {
+            const inputEl = document.getElementById("ai-question-input");
+            const question = inputEl.value.trim();
+            if (!question) {
+                showToast("Введіть ваше запитання про шведську граматику!");
+                return;
+            }
+
+            const btn = document.getElementById("ai-ask-submit-btn");
+            const loader = document.getElementById("ai-ask-loading");
+            const answerEl = document.getElementById("ai-ask-answer");
+
+            btn.disabled = true;
+            loader.classList.remove("hidden");
+            answerEl.classList.add("hidden");
+
+            try {
+                const payload = {
+                    contents: [{
+                        parts: [{
+                            text: question
+                        }]
+                    }],
+                    systemInstruction: {
+                        parts: [{
+                            text: "Ти — дружній викладач шведської мови для українців (рівень A1-A2). Пояснюй граматику коротко, структуровано, українською мовою, з 2-4 чіткими прикладами шведською та їхнім перекладом."
+                        }]
+                    }
+                };
+                const res = await callGeminiAPI(payload);
+                const text = res?.candidates?.[0]?.content?.parts?.[0]?.text || "Не вдалося сформувати відповідь.";
+                answerEl.textContent = text;
+                answerEl.classList.remove("hidden");
+            } catch (e) {
+                showToast("Помилка зв'язку з ШІ. Спробуйте ще раз.");
+            } finally {
+                btn.disabled = false;
+                loader.classList.add("hidden");
+            }
+        }
+
+        /* =========================================================================
+           8. ДОПОМІЖНІ ФУНКЦІЇ, МОДАЛЬНІ ВІКНА ТА ІНІЦІАЛІЗАЦІЯ
+           ========================================================================= */
+        function insertSwedishChar(inputId, ch) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            SFX.tap();
+            const start = el.selectionStart || el.value.length;
+            const end = el.selectionEnd || el.value.length;
+            el.value = el.value.slice(0, start) + ch + el.value.slice(end);
+            el.focus();
+            el.selectionStart = el.selectionEnd = start + ch.length;
+            el.dispatchEvent(new Event("input"));
+        }
+
+        function openHeartsModal() {
+            openModal({
+                emoji: "❤️",
+                title: `У вас ${userState.hearts} / 5 життів`,
+                body: userState.hearts < 5
+                    ? "Помилки — це частина навчання! Ви можете безкоштовно відновити всі 5 життів прямо зараз."
+                    : "У вас повний запас життів! Продовжуйте проходити уроки та тренувати речення з ШІ.",
+                actions: userState.hearts < 5
+                    ? [
+                        {
+                            label: "❤️ Відновити 5 життів безкоштовно",
+                            style: "bg-duoRed border-duoRedDark text-white",
+                            onClick: () => {
+                                userState.hearts = 5;
+                                saveState();
+                                closeModal();
+                                showToast("❤️ Усі 5 життів відновлено!");
+                            }
+                        },
+                        {
+                            label: "Закрити",
+                            style: "bg-slate-100 border-slate-300 text-slate-700",
+                            onClick: () => closeModal()
+                        }
+                    ]
+                    : [
+                        {
+                            label: "Супер!",
+                            style: "bg-duoGreen border-duoGreenDark text-white",
+                            onClick: () => closeModal()
+                        }
+                    ]
+            });
+        }
+
+        function openModal({ emoji, title, body, actions }) {
+            document.getElementById("modal-emoji").textContent = emoji;
+            document.getElementById("modal-title").textContent = title;
+            document.getElementById("modal-body").textContent = body;
+
+            const actionsEl = document.getElementById("modal-actions");
+            actionsEl.innerHTML = "";
+            actions.forEach(act => {
+                const btn = document.createElement("button");
+                btn.className = `btn-3d flex-1 font-black py-3 px-5 rounded-2xl border-b-4 text-sm ${act.style}`;
+                btn.textContent = act.label;
+                btn.onclick = act.onClick;
+                actionsEl.appendChild(btn);
+            });
+
+            document.getElementById("app-modal").classList.remove("hidden");
+        }
+
+        function closeModal() {
+            document.getElementById("app-modal").classList.add("hidden");
+        }
+
+        function openSettingsModal() {
+            SFX.tap();
+            const badge = document.getElementById("settings-tg-badge");
+            const desc = document.getElementById("settings-tg-desc");
+            const syncBtn = document.getElementById("settings-tg-sync-btn");
+            const keyInput = document.getElementById("settings-api-key");
+
+            if (TG.isTelegram) {
+                badge.textContent = "✓ Підключено";
+                badge.className = "text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700";
+                const uname = TG.user?.first_name ? ` (${TG.user.first_name})` : "";
+                desc.textContent = `Активний режим Telegram Mini App${uname}: працює вібровідгук, кнопка «Назад» та хмарна синхронізація прогресу.`;
+                syncBtn.classList.remove("hidden");
+            } else {
+                badge.textContent = "Веб-режим";
+                badge.className = "text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600";
+                syncBtn.classList.add("hidden");
+            }
+
+            try {
+                keyInput.value = localStorage.getItem(CUSTOM_KEY_STORAGE) || "";
+            } catch (e) {}
+
+            document.getElementById("settings-modal").classList.remove("hidden");
+        }
+
+        function closeSettingsModal() {
+            document.getElementById("settings-modal").classList.add("hidden");
+        }
+
+        function saveCustomApiKey() {
+            const val = document.getElementById("settings-api-key").value.trim();
+            try {
+                if (val) {
+                    localStorage.setItem(CUSTOM_KEY_STORAGE, val);
+                    showToast("✅ Gemini API ключ збережено!");
+                } else {
+                    localStorage.removeItem(CUSTOM_KEY_STORAGE);
+                    showToast("Ключ очищено (використовується стандартний)");
+                }
+            } catch (e) {
+                showToast("Не вдалося зберегти ключ у браузері");
+            }
+        }
+
+        function sendProgressToBot() {
+            const sent = TG.sendDataToBot({
+                type: "progress_sync",
+                xp: userState.xp,
+                streak: userState.streak,
+                completedCount: userState.completedLessons.length,
+                totalLessons: LESSONS.length
+            });
+            if (sent) {
+                showToast("✈️ Прогрес надіслано в чат бота!");
+            } else {
+                showToast("Відкрийте додаток через кнопку клавіатури бота для передачі прогресу.", 3500);
+            }
+        }
+
+        function confirmResetProgress() {
+            closeSettingsModal();
+            openModal({
+                emoji: "⚠️",
+                title: "Скинути весь прогрес?",
+                body: "Усі зароблені XP, відкриті теми та історія перевірок будуть обнулені.",
+                actions: [
+                    {
+                        label: "Так, скинути",
+                        style: "bg-duoRed border-duoRedDark text-white",
+                        onClick: () => {
+                            userState = { xp: 0, streak: 1, hearts: 5, completedLessons: [], aiHistory: [] };
+                            saveState();
+                            renderLessonPath();
+                            renderAiHistory();
+                            closeModal();
+                            showToast("Прогрес скинуто — починаємо з Теми 1!");
+                        }
+                    },
+                    {
+                        label: "Скасувати",
+                        style: "bg-slate-100 border-slate-300 text-slate-700",
+                        onClick: () => closeModal()
+                    }
+                ]
+            });
+        }
+
+        let toastTimer = null;
+        function showToast(msg, duration = 2600) {
+            const el = document.getElementById("toast");
+            el.textContent = msg;
+            el.classList.remove("hidden");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.add("hidden"), duration);
+        }
+
+        function normalizeSwedish(str) {
+            return str.toLowerCase().replace(/[.,!?;:]/g, "").replace(/\s+/g, " ").trim();
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function escapeJs(str) {
+            return String(str).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        }
+
+        function escapeAttr(str) {
+            return String(str).replace(/"/g, "&quot;");
+        }
+
+        // Ініціалізація додатку при завантаженні
+        window.onload = function () {
+            TG.init();
+            loadState();
+            renderLessonPath();
+            renderGrammarCards();
+            renderActiveAiTask();
+            renderAiHistory();
+            switchTab("path");
+            // Прогріваємо та кешуємо список голосів для озвучення шведської
+            if ("speechSynthesis" in window) {
+                refreshSwedishVoice();
+                window.speechSynthesis.onvoiceschanged = refreshSwedishVoice;
+            }
+        };
+    </script>
+</body>
+</html>
